@@ -1,0 +1,30 @@
+{
+  "include": ["src"],
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [
+      "@cloudflare/workers-types",
+      "@types/dom-navigation",
+      "@types/node",
+      "vite/client"
+    ],
+    "rootDir": ".",
+    "paths": {
+      "~/*": ["src/app/*"]
+    },
+    "allowImportingTsExtensions": true,
+    "jsx": "react-jsx",
+    "esModuleInterop": false,
+    "skipLibCheck": true,
+    "target": "ES2022",
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "module": "Preserve",
+    "noEmit": true
+  }
+}
