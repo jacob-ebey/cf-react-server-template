@@ -6,18 +6,18 @@ import * as v from "valibot";
 import { Button } from "~/components/ui/button";
 import { GlobalLoader } from "~/components/ui/global-loader";
 import { ValidatedForm, ValidatedInput } from "~/components/ui/validated-form";
+import { randomId } from "~/lib/utils";
 
-import { LoginSchema } from "./login.shared";
-import { randomId } from "./lib/utils";
+import { SignupSchema } from "./signup.shared";
 
-export function LoginForm({
+export function SignupForm({
   initialEmail,
   initialIssues,
-  login,
+  signup,
 }: {
   initialEmail?: string;
   initialIssues?: v.FlatErrors<any>;
-  login: (formData: FormData) => Promise<void>;
+  signup: (formData: FormData) => Promise<void>;
 }) {
   const [transitioning, startTransition] = useTransition();
   const formKey = useMemo(() => randomId(), [initialIssues]);
@@ -29,9 +29,9 @@ export function LoginForm({
         key={formKey}
         className="space-y-6"
         initialIssues={initialIssues}
-        schema={LoginSchema}
+        schema={SignupSchema}
         validateOn="submit"
-        action={login}
+        action={signup}
         onSubmit={(event) => {
           if (event.defaultPrevented) return;
           event.preventDefault();
@@ -40,7 +40,7 @@ export function LoginForm({
 
           const formData = new FormData(event.currentTarget);
           startTransition(async () => {
-            await login(formData);
+            await signup(formData);
           });
         }}
       >
@@ -49,7 +49,7 @@ export function LoginForm({
           name="email"
           type="email"
           placeholder="Enter your email"
-          autoComplete="current-email"
+          autoComplete="email"
           label="Email"
           defaultValue={initialEmail}
         />
@@ -58,16 +58,24 @@ export function LoginForm({
           name="password"
           type="password"
           placeholder="Enter your password"
-          autoComplete="current-password"
+          autoComplete="new-password"
           label="Password"
         />
 
-        <Button type="submit">Login</Button>
+        <ValidatedInput
+          name="verifyPassword"
+          type="password"
+          placeholder="Verify your password"
+          autoComplete="new-password"
+          label="Verify Password"
+        />
+
+        <Button type="submit">Signup</Button>
 
         <p className="p">
-          Don't have an account?{" "}
-          <a className="a" href="/signup">
-            Signup here.
+          Already have an account?{" "}
+          <a className="a" href="/">
+            Login here.
           </a>
         </p>
       </ValidatedForm>

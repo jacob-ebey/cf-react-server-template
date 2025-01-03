@@ -25,6 +25,7 @@ declare global {
 
 export type UNSAFE_Context = {
   actionState?: Record<string, unknown>;
+  destorySession?: true;
   env: AppEnvironment;
   headers: Headers;
   responseSent: boolean;
@@ -70,6 +71,14 @@ export function getCookieSession<T>(key: string) {
 
 export function setCookieSession<T>(key: string, value: T) {
   ctxNotSent().session.set(key, value);
+}
+
+export function destoryCookieSession() {
+  const context = ctxNotSent();
+  context.destorySession = true;
+  for (const key of Object.keys(context.session.data)) {
+    context.session.unset(key);
+  }
 }
 
 export function getEnv() {
@@ -168,7 +177,12 @@ export async function renderApp(
 
     const headers = new Headers(ctx.headers);
     headers.set("Content-Type", "text/x-component");
-    headers.append("Set-Cookie", await sessionStorage.commitSession(session));
+    headers.append(
+      "Set-Cookie",
+      ctx.destorySession
+        ? await sessionStorage.destroySession(session)
+        : await sessionStorage.commitSession(session)
+    );
 
     ctx.responseSent = true;
     return new Response(body, {
