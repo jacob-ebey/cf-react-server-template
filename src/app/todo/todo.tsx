@@ -6,7 +6,6 @@ import {
   getURL,
   redirect,
   setActionState,
-  setStatus,
 } from "framework/server";
 
 import { Button } from "~/components/ui/button";
@@ -28,10 +27,6 @@ export default async function TodoRoute() {
   const todo = todoListId
     ? await USER.get(USER.idFromName(userId)).getTodoList({ id: todoListId })
     : null;
-
-  if (todoListId && !todo) {
-    setStatus(404);
-  }
 
   const todos = <TodoList userId={userId} />;
 
@@ -74,7 +69,14 @@ export default async function TodoRoute() {
           <Button type="submit">Create Todo List</Button>
         </form>
 
-        {todo ? <Todo id={todo.id} title={todo.title} /> : todos}
+        {todo ? (
+          <Todo id={todo.id} title={todo.title} />
+        ) : (
+          <>
+            <h1>Select a list</h1>
+            {todos}
+          </>
+        )}
       </div>
     </Layout>
   );
@@ -97,6 +99,7 @@ async function TodoList({ userId }: { userId: string }) {
                 const { USER } = getEnv();
                 const userApi = USER.get(USER.idFromName(userId));
                 await userApi.deleteTodoList({ id });
+                redirect("/todo");
               }}
             >
               <Button type="submit" variant="destructive">
