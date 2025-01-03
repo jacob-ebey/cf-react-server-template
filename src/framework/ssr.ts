@@ -33,7 +33,7 @@ export async function renderServerResponse(
         },
       },
     });
-    if (prerenderResponse.ok) {
+    if (prerenderResponse.status === 200 || prerenderResponse.status === 304) {
       const headers = new Headers(prerenderResponse.headers);
       if (isDataRequest) {
         headers.set("Content-Type", "text/x-component");
