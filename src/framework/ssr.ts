@@ -66,7 +66,10 @@ export async function renderServerResponse(
 
   const payload: UNSAFE_ServerPayload = await RSD.createFromReadableStream(
     rscA,
-    manifest
+    manifest,
+    {
+      replayConsoleLogs: false,
+    }
   );
 
   const url = new URL(request.url);

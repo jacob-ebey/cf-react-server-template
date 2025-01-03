@@ -22,7 +22,8 @@ export async function App() {
       </head>
       <body>
         {(() => {
-          switch (url.pathname) {
+          const pathStart = url.pathname.split("/", 2).join("/");
+          switch (pathStart) {
             case "/todo":
               return <Todo />;
             case "/signup":

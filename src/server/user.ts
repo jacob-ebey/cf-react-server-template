@@ -52,6 +52,16 @@ export class User extends DurableObject {
     return results.map(rowToTodoList);
   }
 
+  getTodoList({ id }: { id: string }): TodoList | null {
+    const result = this.sql
+      .exec("SELECT * FROM todo_lists WHERE id = ?", id)
+      .toArray();
+    if (result.length === 0) {
+      return null;
+    }
+    return rowToTodoList(result[0]);
+  }
+
   updateTodoList({ id, title }: { id: string; title: string }): boolean {
     const result = this.sql.exec(
       "UPDATE todo_lists SET title = ? WHERE id = ?",

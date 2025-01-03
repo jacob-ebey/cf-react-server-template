@@ -5,7 +5,7 @@
 @layer base {
 	:root {
 		--sidebar-width-mobile: 80%;
-		--sidebar-width-desktop: 16rem;
+		--sidebar-width-desktop: 20rem;
 
 		--background: white;
 		--foreground: black;

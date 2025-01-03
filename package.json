@@ -17,6 +17,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cookie": "^1.0.2",
+    "focus-trap": "^7.6.2",
+    "lucide-react": "^0.469.0",
     "pouchdb-browser": "^9.0.0",
     "react": "^19.0.0",
     "react-aria-components": "^1.5.0",
