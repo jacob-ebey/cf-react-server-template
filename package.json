@@ -5,6 +5,7 @@
   "scripts": {
     "build": "vite build --app",
     "check:types": "tsc --build",
+    "deploy": "wrangler deploy -c dist/server/wrangler.json && pnpm wrangler deploy -c dist/ssr/wrangler.json ",
     "dev": "vite dev",
     "preview": "vite preview"
   },
