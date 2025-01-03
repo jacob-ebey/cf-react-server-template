@@ -25,7 +25,7 @@ export default function Signup() {
   const loggedIn = !!getCookieSession("userId");
 
   if (loggedIn) {
-    return redirect("/dashboard");
+    return redirect("/todo");
   }
 
   return (
@@ -78,7 +78,7 @@ export default function Signup() {
           ]);
 
           setCookieSession("userId", userId);
-          redirect("/dashboard");
+          redirect("/todo");
         }}
       />
     </main>

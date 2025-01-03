@@ -8,9 +8,46 @@ import type { UNSAFE_ServerPayload } from "./server";
 
 export async function renderServerResponse(
   request: Request,
-  serverResponse: Response
+  ASSETS: Fetcher,
+  sendServerRequest: (request: Request) => Promise<Response>
 ) {
-  if (request.headers.get("Accept")?.match(/\btext\/x-component\b/)) {
+  const isDataRequest = request.headers
+    .get("Accept")
+    ?.match(/\btext\/x-component\b/);
+
+  let serverResponse: Response | undefined;
+  let isPrerendered = false;
+  if (request.method === "GET") {
+    const prerenderURL = new URL(request.url);
+    prerenderURL.pathname =
+      "/_prerender" +
+      (prerenderURL.pathname === "/" ? "/index" : prerenderURL.pathname) +
+      (isDataRequest ? ".data" : ".html");
+    const prerenderResponse = await ASSETS.fetch(prerenderURL, {
+      headers: request.headers,
+    });
+    if (prerenderResponse.ok) {
+      const headers = new Headers(prerenderResponse.headers);
+      if (isDataRequest) {
+        headers.set("Content-Type", "text/x-component");
+      } else {
+        headers.set("Content-Type", "text/html; charset=utf-8");
+      }
+      serverResponse = new Response(prerenderResponse.body, {
+        duplex: "half",
+        headers,
+        status: prerenderResponse.status,
+        statusText: prerenderResponse.statusText,
+      } as ResponseInit);
+      isPrerendered = true;
+    }
+  }
+
+  if (!serverResponse) {
+    serverResponse = await sendServerRequest(request);
+  }
+
+  if (isDataRequest || (!isDataRequest && isPrerendered)) {
     return serverResponse;
   }
 
@@ -18,7 +55,7 @@ export async function renderServerResponse(
     throw new Error("Expected response body");
   }
 
-  const [rscA, rscB] = serverResponse.body.tee();
+  let [rscA, rscB] = serverResponse.body.tee();
 
   const payload: UNSAFE_ServerPayload = await RSD.createFromReadableStream(
     rscA,
@@ -45,6 +82,21 @@ export async function renderServerResponse(
 
   const headers = new Headers(serverResponse.headers);
   headers.set("Content-Type", "text/html; charset=utf-8");
+
+  if (request.headers.get("PRERENDER") === "1") {
+    let tee = rscB.tee();
+    rscB = tee[0];
+    let rscPayload = "";
+    await tee[1].pipeThrough(new TextDecoderStream()).pipeTo(
+      new WritableStream({
+        write(chunk) {
+          rscPayload += chunk;
+        },
+      })
+    );
+    await body.allReady;
+    headers.set("X-RSC-Payload", encodeURI(rscPayload));
+  }
 
   return new Response(body.pipeThrough(injectRSCPayload(rscB)), {
     headers,

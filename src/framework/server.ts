@@ -191,7 +191,7 @@ export async function renderApp(
 
     if (ctx.redirect) {
       const headers = new Headers(ctx.headers);
-      headers.set("Content-Type", "text/x-component");
+      headers.set("Content-Type", "text/plain");
       headers.append(
         "Set-Cookie",
         ctx.destorySession
@@ -200,7 +200,7 @@ export async function renderApp(
       );
       headers.set("Location", ctx.redirect);
 
-      return new Response(null, {
+      return new Response(`redirect ${ctx.redirect}`, {
         status: ctx.status,
         headers,
       });

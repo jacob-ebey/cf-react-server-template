@@ -21,7 +21,7 @@ export default {
       request,
       {
         httpOnly: true,
-        secrets: [env.SESSION_SECRET],
+        secrets: env.SESSION_SECRET ? [env.SESSION_SECRET] : undefined,
         secure: url.protocol === "https:",
       },
       env,
