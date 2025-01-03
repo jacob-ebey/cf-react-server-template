@@ -1,5 +1,3 @@
-import * as path from "node:path";
-
 import { cloudflare } from "@flarelabs-net/vite-plugin-cloudflare";
 import reactServerDOM from "@jacob-ebey/vite-react-server-dom";
 import { defineConfig } from "vite";
@@ -23,13 +21,13 @@ export default defineConfig({
       ssrEnvironments: ["ssr"],
       runtime: {
         browser: {
-          importFrom: path.resolve("src/framework/references.browser.ts"),
+          importFrom: "framework/references.browser",
         },
         server: {
-          importFrom: path.resolve("src/framework/references.server.ts"),
+          importFrom: "framework/references.server",
         },
         ssr: {
-          importFrom: path.resolve("src/framework/references.ssr.ts"),
+          importFrom: "framework/references.ssr",
         },
       },
     }),

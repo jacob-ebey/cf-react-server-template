@@ -1,13 +1,13 @@
-import { renderServerResponse } from '../framework/ssr';
+import { renderServerResponse } from "framework/ssr";
 
 type CloudflareEnv = {
-	SERVER: Fetcher;
+  SERVER: Fetcher;
 };
 
 export default {
-	async fetch(request, { SERVER }) {
-		const serverResponse = await SERVER.fetch(request);
+  async fetch(request, { SERVER }) {
+    const serverResponse = await SERVER.fetch(request);
 
-		return renderServerResponse(request, serverResponse);
-	},
+    return renderServerResponse(request, serverResponse);
+  },
 } satisfies ExportedHandler<CloudflareEnv>;

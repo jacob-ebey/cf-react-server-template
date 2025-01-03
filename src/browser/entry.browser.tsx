@@ -1,3 +1,3 @@
-import { hydrateApp } from '../framework/browser';
+import { hydrateApp } from 'framework/browser';
 
 hydrateApp();

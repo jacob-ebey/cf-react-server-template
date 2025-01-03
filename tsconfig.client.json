@@ -10,7 +10,8 @@
     ],
     "rootDir": ".",
     "paths": {
-      "~/*": ["./src/app/*"]
+      "~/*": ["./src/app/*"],
+      "framework/*": ["./src/framework/*"]
     },
     "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
