@@ -3,7 +3,13 @@ import {
   createFromReadableStream,
   // @ts-expect-error - no types yet
 } from "@jacob-ebey/react-server-dom-vite/client";
-import { startTransition, StrictMode, useState } from "react";
+import {
+  startTransition,
+  StrictMode,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { hydrateRoot } from "react-dom/client";
 import { rscStream } from "rsc-html-stream/client";
 // @ts-expect-error - no types yet
@@ -11,9 +17,48 @@ import { manifest } from "virtual:react-manifest";
 import { api, callServer } from "./references.browser.js";
 import type { UNSAFE_ServerPayload } from "./server.js";
 
-function Shell(props: { root: React.JSX.Element }) {
-  const [root, setRoot] = useState(props.root);
-  api.updateRoot = setRoot;
+function getLocationSnapshot() {
+  return window.location.pathname + window.location.search;
+}
+
+function locationSubscribe(callback: () => void) {
+  if (window.navigation) {
+    window.navigation.addEventListener("navigate", callback);
+    return () => {
+      window.navigation.removeEventListener("navigate", callback);
+    };
+  }
+
+  let current = window.location.href;
+  let aborted = false;
+  const interval = setInterval(() => {
+    if (current !== window.location.href && !aborted) {
+      current = window.location.href;
+      callback();
+    }
+  }, 500);
+  return () => {
+    aborted = true;
+    clearInterval(interval);
+  };
+}
+
+function Shell(props: UNSAFE_ServerPayload) {
+  const [{ location, root }, setPayload] = useState(props);
+  api.updatePayload = setPayload;
+
+  const windowLocation = useSyncExternalStore(
+    locationSubscribe,
+    getLocationSnapshot,
+    () => location
+  );
+
+  useEffect(() => {
+    if (location !== windowLocation) {
+      window.history.replaceState(null, "", location);
+    }
+  }, [location, windowLocation]);
+
   return root;
 }
 
@@ -28,7 +73,7 @@ export async function hydrateApp(container: Element | Document = document) {
     hydrateRoot(
       container,
       <StrictMode>
-        <Shell root={payload.root} />
+        <Shell {...payload} />
       </StrictMode>,
       {
         formState: payload.formState,
@@ -72,7 +117,7 @@ export async function hydrateApp(container: Element | Document = document) {
 
         startedTransition = true;
         startTransition(() => {
-          api.updateRoot?.(payload.root);
+          api.updatePayload?.((existing) => ({ ...existing, ...payload }));
         });
       },
     });

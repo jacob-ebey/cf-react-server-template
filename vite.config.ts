@@ -32,7 +32,7 @@ export default defineConfig({
       },
     }),
     cloudflare({
-      persistState: false,
+      persistState: true,
       configPath: "src/ssr/wrangler.toml",
       auxiliaryWorkers: [
         {

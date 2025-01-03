@@ -15,6 +15,7 @@ import type { Session, SessionData } from "./sessions";
 
 export type UNSAFE_ServerPayload = {
   formState?: ReactFormState;
+  location: string;
   returnValue?: unknown;
   root: React.JSX.Element;
 };
@@ -24,11 +25,12 @@ declare global {
 }
 
 export type UNSAFE_Context = {
+  stage: "action" | "render" | "sent";
   actionState?: Record<string, unknown>;
   destorySession?: true;
   env: AppEnvironment;
   headers: Headers;
-  responseSent: boolean;
+  redirect?: string;
   session: Session<SessionData, SessionData>;
   status: number;
   statusText?: string;
@@ -42,12 +44,15 @@ function ctx() {
   if (!ctx) {
     throw new Error("No context store found");
   }
+  if (ctx.stage === "sent") {
+    throw new Error("Response already sent");
+  }
   return ctx;
 }
 
-function ctxNotSent() {
+function ctxActionsOnly() {
   const context = ctx();
-  if (context.responseSent) {
+  if (context.stage !== "action") {
     throw new Error("Response already sent");
   }
   return context;
@@ -70,11 +75,11 @@ export function getCookieSession<T>(key: string) {
 }
 
 export function setCookieSession<T>(key: string, value: T) {
-  ctxNotSent().session.set(key, value);
+  ctxActionsOnly().session.set(key, value);
 }
 
 export function destoryCookieSession() {
-  const context = ctxNotSent();
+  const context = ctxActionsOnly();
   context.destorySession = true;
   for (const key of Object.keys(context.session.data)) {
     context.session.unset(key);
@@ -90,13 +95,27 @@ export function getURL() {
 }
 
 export function setHeader(key: string, value: string) {
-  ctxNotSent().headers.set(key, value);
+  ctxActionsOnly().headers.set(key, value);
 }
 
 export function setStatus(status: number, statusText?: string) {
-  const context = ctxNotSent();
+  const context = ctxActionsOnly();
+  if (context.redirect) {
+    throw new Error("Cannot set status after redirect");
+  }
   context.status = status;
   context.statusText = statusText;
+}
+
+export function redirect(to: string, status?: number): undefined {
+  const context = ctx();
+  context.status =
+    typeof status === "number"
+      ? status
+      : context.stage === "action"
+      ? 303
+      : 307;
+  context.redirect = to;
 }
 
 export async function renderApp(
@@ -112,13 +131,22 @@ export async function renderApp(
 
   const url = new URL(request.url);
 
+  let _redirect: string | undefined;
+  let onRedirect: ((to: string) => void) | undefined;
   const ctx: UNSAFE_Context = {
+    stage: "action",
     env,
     url,
     headers: new Headers(),
-    responseSent: false,
     session,
     status: 200,
+    get redirect() {
+      return _redirect;
+    },
+    set redirect(to: string | undefined) {
+      _redirect = to;
+      if (to && onRedirect) onRedirect(to);
+    },
   };
 
   return UNSAFE_ContextStorage.run(ctx, async () => {
@@ -161,12 +189,31 @@ export async function renderApp(
       console.error(error);
     }
 
+    if (ctx.redirect) {
+      const headers = new Headers(ctx.headers);
+      headers.set("Content-Type", "text/x-component");
+      headers.append(
+        "Set-Cookie",
+        ctx.destorySession
+          ? await sessionStorage.destroySession(session)
+          : await sessionStorage.commitSession(session)
+      );
+      headers.set("Location", ctx.redirect);
+
+      return new Response(null, {
+        status: ctx.status,
+        headers,
+      });
+    }
+
     const payload = {
       formState,
+      location: url.pathname + url.search,
       returnValue,
       root,
     } satisfies UNSAFE_ServerPayload;
 
+    ctx.stage = "render";
     const { abort, pipe } = RSD.renderToPipeableStream(payload, manifest);
 
     request.signal.addEventListener("abort", () => abort());
@@ -183,12 +230,37 @@ export async function renderApp(
         ? await sessionStorage.destroySession(session)
         : await sessionStorage.commitSession(session)
     );
+    if (ctx.redirect) {
+      headers.set("Location", ctx.redirect);
+    }
 
-    ctx.responseSent = true;
-    return new Response(body, {
-      status: ctx.status,
-      statusText: ctx.statusText,
-      headers,
-    });
+    let gotLateRedirect = false;
+    onRedirect = () => {
+      gotLateRedirect = true;
+    };
+    return new Response(
+      body.pipeThrough(
+        new TransformStream<Uint8Array, Uint8Array>({
+          flush(controller) {
+            if (gotLateRedirect) {
+              throw new Error("TODO: Implement late redirects");
+              // controller.enqueue(
+              //   new TextEncoder().encode(
+              //     `\n\n${JSON.stringify({
+              //       redirect: ctx.redirect,
+              //     })}\n`
+              //   )
+              // );
+            }
+            ctx.stage = "sent";
+          },
+        })
+      ),
+      {
+        status: ctx.status,
+        statusText: ctx.statusText,
+        headers,
+      }
+    );
   });
 }

@@ -3,7 +3,9 @@ import * as v from "valibot";
 
 import {
   getActionState,
+  getCookieSession,
   getEnv,
+  redirect,
   setActionState,
   setCookieSession,
   setStatus,
@@ -20,10 +22,16 @@ export default function Login() {
   const { initialEmail, initialIssues } =
     getActionState<LoginState>("login") ?? {};
 
+  const loggedIn = !!getCookieSession("userId");
+
+  if (loggedIn) {
+    return redirect("/dashboard");
+  }
+
   return (
     <main className="container w-full mx-auto px-4 md:px-6 py-16">
       <div className="typography">
-        <h1 className="h1">Login</h1>
+        <h1>Login</h1>
       </div>
       <LoginForm
         initialEmail={initialEmail}
@@ -68,8 +76,11 @@ export default function Login() {
           }
 
           setCookieSession("userId", userId);
+          redirect("/dashboard");
         }}
       />
+
+      <a href="/dashboard">Dashboard</a>
     </main>
   );
 }

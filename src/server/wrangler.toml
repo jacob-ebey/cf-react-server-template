@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [[kv_namespaces]]
 binding = "USERS"
-id = "USERS"
+id = "54a67a72e2184faa86397c3a75f3f99d"
 
 [durable_objects]
 bindings = [{ name = "COUNTER", class_name = "Counter" }]

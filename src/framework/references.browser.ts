@@ -10,7 +10,7 @@ import { manifest } from "virtual:react-manifest";
 import type { UNSAFE_ServerPayload } from "./server";
 
 export const api: {
-  updateRoot?: React.Dispatch<React.SetStateAction<React.JSX.Element>>;
+  updatePayload?: React.Dispatch<React.SetStateAction<UNSAFE_ServerPayload>>;
 } = {};
 
 export async function callServer(id: string, args: unknown) {
@@ -34,7 +34,7 @@ export async function callServer(id: string, args: unknown) {
   );
 
   startTransition(() => {
-    api.updateRoot?.(payload.root);
+    api.updatePayload?.((existing) => ({ ...existing, ...payload }));
   });
 
   return payload.returnValue;
