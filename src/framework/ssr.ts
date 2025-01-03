@@ -25,6 +25,13 @@ export async function renderServerResponse(
       (isDataRequest ? ".data" : ".html");
     const prerenderResponse = await ASSETS.fetch(prerenderURL, {
       headers: request.headers,
+      cf: {
+        cacheTtl: 300,
+        cacheTtlByStatus: {
+          "200": 300,
+          "404": 300,
+        },
+      },
     });
     if (prerenderResponse.ok) {
       const headers = new Headers(prerenderResponse.headers);
