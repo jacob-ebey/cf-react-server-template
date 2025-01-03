@@ -8,8 +8,11 @@ binding = "USERS"
 id = "54a67a72e2184faa86397c3a75f3f99d"
 
 [durable_objects]
-bindings = [{ name = "COUNTER", class_name = "Counter" }]
+bindings = [
+  { name = "TODO_LIST", class_name = "TodoList" },
+  { name = "USER", class_name = "User" }
+]
 
 [[migrations]]
 tag = "v1"
-new_classes = ["Counter"]
+new_sqlite_classes = ["TodoList", "User"]

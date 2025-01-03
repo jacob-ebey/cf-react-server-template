@@ -1,16 +1,18 @@
 import { renderApp } from "framework/server";
 
-import { Counter } from "./counter";
+import { TodoList } from "./todo-list";
+import { User } from "./user";
 
 declare global {
   interface AppEnvironment {
-    COUNTER: DurableObjectNamespace<Counter>;
+    TODO_LIST: DurableObjectNamespace<TodoList>;
     SESSION_SECRET: string;
+    USER: DurableObjectNamespace<User>;
     USERS: KVNamespace;
   }
 }
 
-export { Counter };
+export { TodoList, User };
 
 export default {
   async fetch(request, env) {
