@@ -1,5 +1,7 @@
+import { useId } from "react";
+import { Check, Loader } from "lucide-react";
+
 import {
-  destoryCookieSession,
   getActionState,
   getCookieSession,
   getEnv,
@@ -14,8 +16,6 @@ import { Input } from "~/components/ui/input";
 import { logoutAction } from "~/global-actions";
 
 import { Layout } from "./todo.client";
-import { useId } from "react";
-import { Check, Loader } from "lucide-react";
 
 export default async function TodoRoute() {
   const { USER } = getEnv();
@@ -39,19 +39,18 @@ export default async function TodoRoute() {
     return todo;
   });
 
-  const todos = <AllTodos userId={userId} />;
+  const todoLists = <TodoLists userId={userId} />;
 
   return (
     <>
       <title>{todoList ? `${todoList.title} | TODO` : "TODO"}</title>
       <Layout
-        logoutAction={logoutAction}
         sidebar={
           <div className="p-4 md:px-6 space-y-6">
             <a href="/todo" className="p a">
               All Lists
             </a>
-            {todos}
+            {todoLists}
           </div>
         }
       >
@@ -61,7 +60,7 @@ export default async function TodoRoute() {
           ) : (
             <div className="space-y-20">
               <NewTodoListForm userId={userId} />
-              {todos}
+              {todoLists}
             </div>
           )}
         </div>
@@ -70,7 +69,7 @@ export default async function TodoRoute() {
   );
 }
 
-async function AllTodos({ userId }: { userId: string }) {
+async function TodoLists({ userId }: { userId: string }) {
   const { USER } = getEnv();
   const userApi = USER.get(USER.idFromName(userId));
 

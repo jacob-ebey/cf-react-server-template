@@ -62,8 +62,8 @@ importers:
         specifier: https://pkg.pr.new/flarelabs-net/vite-plugin-cloudflare/@flarelabs-net/vite-plugin-cloudflare@123
         version: https://pkg.pr.new/flarelabs-net/vite-plugin-cloudflare/@flarelabs-net/vite-plugin-cloudflare@123(vite@6.0.7(@types/node@22.10.4)(jiti@1.21.7)(terser@5.37.0)(yaml@2.7.0))(wrangler@3.99.0(@cloudflare/workers-types@4.20241230.0))
       '@jacob-ebey/vite-react-server-dom':
-        specifier: 0.0.11
-        version: 0.0.11(@jacob-ebey/react-server-dom-vite@19.0.0-experimental.14(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(rollup@2.79.2)(vite@6.0.7(@types/node@22.10.4)(jiti@1.21.7)(terser@5.37.0)(yaml@2.7.0))
+        specifier: 0.0.12
+        version: 0.0.12(@jacob-ebey/react-server-dom-vite@19.0.0-experimental.14(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(rollup@2.79.2)(vite@6.0.7(@types/node@22.10.4)(jiti@1.21.7)(terser@5.37.0)(yaml@2.7.0))
       '@types/cookie':
         specifier: ^1.0.0
         version: 1.0.0
@@ -1089,8 +1089,8 @@ packages:
       react: ^19.0.0
       react-dom: ^19.0.0
 
-  '@jacob-ebey/vite-react-server-dom@0.0.11':
-    resolution: {integrity: sha512-yZIB2oLPUTCbLyx4HTlW97TqIxYJDJ+CAOYOcX1ZRc2MJJX7Xv/CqcIVwYEpzgRc/jJNJ832kxSVFKHVXxJ3dw==}
+  '@jacob-ebey/vite-react-server-dom@0.0.12':
+    resolution: {integrity: sha512-XzaqcFlnXgRv2ZVyHJEhJGLvTsx0XCpnGqlHywzrp6XjUMujyRvEdNp4EGt8VGpGtH0o+TlS6YxLTc8MVH3jGQ==}
     peerDependencies:
       '@jacob-ebey/react-server-dom-vite': '*'
       vite: ^6.0.7
@@ -4569,7 +4569,7 @@ snapshots:
       react: 19.0.0
       react-dom: 19.0.0(react@19.0.0)
 
-  '@jacob-ebey/vite-react-server-dom@0.0.11(@jacob-ebey/react-server-dom-vite@19.0.0-experimental.14(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(rollup@2.79.2)(vite@6.0.7(@types/node@22.10.4)(jiti@1.21.7)(terser@5.37.0)(yaml@2.7.0))':
+  '@jacob-ebey/vite-react-server-dom@0.0.12(@jacob-ebey/react-server-dom-vite@19.0.0-experimental.14(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(rollup@2.79.2)(vite@6.0.7(@types/node@22.10.4)(jiti@1.21.7)(terser@5.37.0)(yaml@2.7.0))':
     dependencies:
       '@jacob-ebey/react-server-dom-vite': 19.0.0-experimental.14(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@mjackson/node-fetch-server': 0.5.0

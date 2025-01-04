@@ -9,14 +9,13 @@ import {
   SidebarContainer,
   SidebarMain,
 } from "~/components/ui/sidebar";
+import { logoutAction } from "~/global-actions";
 import { cn } from "~/lib/utils";
 
 export function Layout({
   children,
   sidebar,
-  logoutAction,
 }: {
-  logoutAction: (formData: FormData) => void | Promise<void>;
   children: React.ReactNode;
   sidebar: React.ReactNode;
 }) {
