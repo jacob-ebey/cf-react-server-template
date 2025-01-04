@@ -11,6 +11,7 @@ import {
 
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { logoutAction } from "~/global-actions";
 
 import { Layout } from "./todo.client";
 
@@ -30,7 +31,6 @@ export default async function TodoRoute() {
     const todo = todoListId
       ? await USER.get(USER.idFromName(userId)).getTodoList({ id: todoListId })
       : null;
-
     if (!todo && todoListId) {
       return redirect("/todo");
     }
@@ -46,12 +46,7 @@ export default async function TodoRoute() {
         <h1>Todo</h1>
         <p>Todo page</p>
 
-        <form
-          action={() => {
-            "use server";
-            destoryCookieSession();
-          }}
-        >
+        <form action={logoutAction}>
           <p>
             <Button type="submit">Logout</Button>
           </p>
