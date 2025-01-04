@@ -45,9 +45,6 @@ function ctx() {
   if (!ctx) {
     throw new Error("No context store found");
   }
-  if (ctx.stage === "sent") {
-    throw new Error("Response already sent");
-  }
   return ctx;
 }
 
@@ -110,6 +107,10 @@ export function setStatus(status: number, statusText?: string) {
 
 export function redirect(to: string, status?: number): undefined {
   const context = ctx();
+  if (context.stage === "sent") {
+    throw new Error("TODO: Implement late redirects");
+  }
+
   context.status =
     typeof status === "number"
       ? status
@@ -242,10 +243,12 @@ export async function renderApp(
       pipe(new stream.PassThrough())
     ) as ReadableStream<Uint8Array>;
 
-    // Always allow the render to susspend once before sending the response? IDK if this actually accomplishes that.
-    await new Promise((r) => setTimeout(r, 0));
-
-    await Promise.all(ctx.waitToFlushUntil);
+    do {
+      while (ctx.waitToFlushUntil.length) {
+        await ctx.waitToFlushUntil.shift();
+      }
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    } while (ctx.waitToFlushUntil.length);
 
     ctx.stage = "sent";
     const headers = new Headers(ctx.headers);

@@ -31,12 +31,12 @@ export default async function TodoRoute() {
       ? await USER.get(USER.idFromName(userId)).getTodoList({ id: todoListId })
       : null;
 
+    if (!todo && todoListId) {
+      return redirect("/todo");
+    }
+
     return todo;
   });
-
-  if (!todo && todoListId) {
-    return redirect("/todo");
-  }
 
   const todos = <TodoList userId={userId} />;
 
@@ -98,7 +98,7 @@ async function TodoList({ userId }: { userId: string }) {
 
   const todoLists = await userApi.listTodoLists();
   return (
-    <ul>
+    <ul className="ul typography">
       {todoLists.map(({ id, title }) => {
         return (
           <li key={id} className="flex items-center justify-between">
@@ -119,6 +119,9 @@ async function TodoList({ userId }: { userId: string }) {
           </li>
         );
       })}
+      <li>
+        <a href="/todo/test">Test</a>
+      </li>
     </ul>
   );
 }

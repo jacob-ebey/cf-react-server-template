@@ -10,7 +10,7 @@ import Login from "./login/login";
 import Signup from "./signup/signup";
 import Todo from "./todo/todo";
 
-export async function App() {
+export function App() {
   const url = getURL();
 
   return (
