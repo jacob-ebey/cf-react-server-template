@@ -6,6 +6,7 @@ import {
   getURL,
   redirect,
   setActionState,
+  waitToFlushUntil,
 } from "framework/server";
 
 import { Button } from "~/components/ui/button";
@@ -24,9 +25,18 @@ export default async function TodoRoute() {
   }
 
   const todoListId = url.pathname.replace(/^\/todo\//, "").split("/")[0];
-  const todo = todoListId
-    ? await USER.get(USER.idFromName(userId)).getTodoList({ id: todoListId })
-    : null;
+
+  const todo = await waitToFlushUntil(async () => {
+    const todo = todoListId
+      ? await USER.get(USER.idFromName(userId)).getTodoList({ id: todoListId })
+      : null;
+
+    return todo;
+  });
+
+  if (!todo && todoListId) {
+    return redirect("/todo");
+  }
 
   const todos = <TodoList userId={userId} />;
 

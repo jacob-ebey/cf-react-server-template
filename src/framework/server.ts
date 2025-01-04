@@ -35,6 +35,7 @@ export type UNSAFE_Context = {
   status: number;
   statusText?: string;
   url: URL;
+  waitToFlushUntil: Promise<unknown>[];
 };
 
 export const UNSAFE_ContextStorage = new AsyncLocalStorage<UNSAFE_Context>();
@@ -118,6 +119,26 @@ export function redirect(to: string, status?: number): undefined {
   context.redirect = to;
 }
 
+export function waitToFlushUntil<T>(
+  waitFor: Promise<T> | (() => Promise<T>)
+): Promise<T> {
+  const context = ctx();
+  if (context.stage === "sent") {
+    throw new Error("Response already sent");
+  }
+
+  const promise = typeof waitFor === "function" ? waitFor() : waitFor;
+
+  context.waitToFlushUntil.push(
+    Promise.resolve(promise).then(
+      () => {},
+      () => {}
+    )
+  );
+
+  return promise;
+}
+
 export async function renderApp(
   request: Request,
   cookie: CookieSessionStorageOptions["cookie"],
@@ -140,6 +161,7 @@ export async function renderApp(
     headers: new Headers(),
     session,
     status: 200,
+    waitToFlushUntil: [],
     get redirect() {
       return _redirect;
     },
@@ -215,13 +237,17 @@ export async function renderApp(
 
     ctx.stage = "render";
     const { abort, pipe } = RSD.renderToPipeableStream(payload, manifest);
-
     request.signal.addEventListener("abort", () => abort());
-
     const body = stream.Readable.toWeb(
       pipe(new stream.PassThrough())
     ) as ReadableStream<Uint8Array>;
 
+    // Always allow the render to susspend once before sending the response? IDK if this actually accomplishes that.
+    await new Promise((r) => setTimeout(r, 0));
+
+    await Promise.all(ctx.waitToFlushUntil);
+
+    ctx.stage = "sent";
     const headers = new Headers(ctx.headers);
     headers.set("Content-Type", "text/x-component");
     headers.append(
@@ -252,7 +278,6 @@ export async function renderApp(
               //   )
               // );
             }
-            ctx.stage = "sent";
           },
         })
       ),
