@@ -13,7 +13,6 @@ import {
 
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { logoutAction } from "~/global-actions";
 
 import { Layout } from "./todo.client";
 
