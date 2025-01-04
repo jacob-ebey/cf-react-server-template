@@ -21,7 +21,7 @@ function rowToTodo(row: any) {
   return {
     id: row.id,
     text: row.text,
-    completed: row.completed,
+    completed: row.completed === "true",
     created_at: row.created_at,
   };
 }
@@ -70,7 +70,9 @@ export class TodoList extends DurableObject {
   }
 
   updateTodo({ id, text, completed }: UpdateTodoParams): boolean {
-    const existing = this.sql.exec("SELECT * FROM todos WHERE id = ?").one();
+    const existing = this.sql
+      .exec("SELECT * FROM todos WHERE id = ?", id)
+      .one();
 
     if (!existing) {
       return false;
@@ -93,13 +95,13 @@ export class TodoList extends DurableObject {
     return result.rowsWritten === 1;
   }
 
-  deleteTodo(id: string): boolean {
+  deleteTodo({ id }: { id: string }): boolean {
     const result = this.sql.exec("DELETE FROM todos WHERE id = ?", id);
 
     return result.rowsWritten === 1;
   }
 
-  getTodo(id: string): Todo | null {
+  getTodo({ id }: { id: string }): Todo | null {
     const todo = this.sql
       .exec("SELECT * FROM todos WHERE id = ?", id)
       .one() as unknown as Todo | null;

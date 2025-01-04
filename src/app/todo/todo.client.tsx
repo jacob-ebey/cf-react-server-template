@@ -14,7 +14,9 @@ import { cn } from "~/lib/utils";
 export function Layout({
   children,
   sidebar,
+  logoutAction,
 }: {
+  logoutAction: (formData: FormData) => void | Promise<void>;
   children: React.ReactNode;
   sidebar: React.ReactNode;
 }) {
@@ -64,6 +66,12 @@ export function Layout({
               <span className="sr-only">Toggle sidebar</span>
               {sidebarCollapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
             </Button>
+
+            <div className="flex-1" />
+
+            <form action={logoutAction}>
+              <Button type="submit">Logout</Button>
+            </form>
           </header>
           {children}
         </SidebarMain>

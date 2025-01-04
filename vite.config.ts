@@ -9,6 +9,11 @@ export default defineConfig({
       build: {
         rollupOptions: {
           input: "src/browser/entry.browser.tsx",
+          treeshake: {
+            moduleSideEffects: () => {
+              return false;
+            },
+          },
         },
       },
     },
