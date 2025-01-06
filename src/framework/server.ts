@@ -13,9 +13,14 @@ import {
 } from "./cookie-session";
 import type { Session, SessionData } from "./sessions";
 
+export type Location = {
+  pathname: string;
+  search: string;
+};
+
 export type UNSAFE_ServerPayload = {
   formState?: ReactFormState;
-  location: string;
+  location: Location;
   returnValue?: unknown;
   root: React.JSX.Element;
 };
@@ -214,7 +219,6 @@ export async function renderApp(
 
     if (ctx.redirect) {
       const headers = new Headers(ctx.headers);
-      headers.set("Content-Type", "text/plain");
       headers.append(
         "Set-Cookie",
         ctx.destorySession
@@ -223,15 +227,19 @@ export async function renderApp(
       );
       headers.set("Location", ctx.redirect);
 
-      return new Response(`redirect ${ctx.redirect}`, {
+      return new Response(null, {
         status: ctx.status,
+        statusText: ctx.statusText,
         headers,
       });
     }
 
     const payload = {
       formState,
-      location: url.pathname + url.search,
+      location: {
+        pathname: url.pathname,
+        search: url.search,
+      },
       returnValue,
       root,
     } satisfies UNSAFE_ServerPayload;
@@ -252,7 +260,6 @@ export async function renderApp(
 
     ctx.stage = "sent";
     const headers = new Headers(ctx.headers);
-    headers.set("Content-Type", "text/x-component");
     headers.append(
       "Set-Cookie",
       ctx.destorySession
@@ -261,12 +268,20 @@ export async function renderApp(
     );
     if (ctx.redirect) {
       headers.set("Location", ctx.redirect);
+      abort();
+      return new Response(null, {
+        status: ctx.status,
+        statusText: ctx.statusText,
+        headers,
+      });
     }
 
     let gotLateRedirect = false;
     onRedirect = () => {
       gotLateRedirect = true;
     };
+
+    headers.set("Content-Type", "text/x-component");
     return new Response(
       body.pipeThrough(
         new TransformStream<Uint8Array, Uint8Array>({

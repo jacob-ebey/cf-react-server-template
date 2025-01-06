@@ -4,6 +4,7 @@ import {
   getURL,
 } from "framework/server";
 
+import { GlobalPendingIndicator } from "./app.client";
 import stylesHref from "./app.css?url";
 
 import Login from "./login/login";
@@ -21,6 +22,7 @@ export function App() {
         <link rel="stylesheet" href={stylesHref} />
       </head>
       <body>
+        <GlobalPendingIndicator />
         {(() => {
           const pathStart = url.pathname.split("/", 2).join("/");
           switch (pathStart) {

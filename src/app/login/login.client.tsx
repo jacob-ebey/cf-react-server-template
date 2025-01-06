@@ -1,12 +1,11 @@
 "use client";
 
-import { useId, useMemo, useTransition } from "react";
+import { useTransition } from "react";
 import * as v from "valibot";
 
 import { Button } from "~/components/ui/button";
 import { GlobalLoader } from "~/components/ui/global-loader";
 import { ValidatedForm, ValidatedInput } from "~/components/ui/validated-form";
-import { randomId } from "~/lib/utils";
 
 import { LoginSchema } from "./login.shared";
 
@@ -20,13 +19,11 @@ export function LoginForm({
   login: (formData: FormData) => Promise<void>;
 }) {
   const [transitioning, startTransition] = useTransition();
-  const formKey = useMemo(() => randomId(), [initialIssues]);
 
   return (
     <>
       <GlobalLoader loading={transitioning} />
       <ValidatedForm
-        key={formKey}
         className="space-y-6"
         initialIssues={initialIssues}
         schema={LoginSchema}

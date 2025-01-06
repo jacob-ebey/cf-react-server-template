@@ -6,14 +6,20 @@ import {
 import {
   startTransition,
   StrictMode,
+  use,
+  useCallback,
   useEffect,
+  useMemo,
   useState,
   useSyncExternalStore,
+  useTransition,
 } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { rscStream } from "rsc-html-stream/client";
 // @ts-expect-error - no types yet
 import { manifest } from "virtual:react-manifest";
+
+import { UNSAFE_RouterContext, type RouterContext } from "./client.js";
 import { api, callServer } from "./references.browser.js";
 import type { UNSAFE_ServerPayload } from "./server.js";
 
@@ -43,40 +49,63 @@ function locationSubscribe(callback: () => void) {
   };
 }
 
-function Shell(props: UNSAFE_ServerPayload) {
-  const [{ location, root }, setPayload] = useState(props);
-  api.updatePayload = setPayload;
+function Shell({ payload }: { payload: Promise<UNSAFE_ServerPayload> }) {
+  const [promise, setPayload] = useState(payload);
+  const [navigating, startNavigation] = useTransition();
+
+  const { location, root } = use(promise);
+
+  api.updatePayload = useCallback<
+    React.Dispatch<React.SetStateAction<Promise<UNSAFE_ServerPayload>>>
+  >((payload) => {
+    startNavigation(() => {
+      setPayload(payload);
+    });
+  }, []);
 
   const windowLocation = useSyncExternalStore(
     locationSubscribe,
     getLocationSnapshot,
-    () => location
+    () => location.pathname + location.search
   );
 
   useEffect(() => {
-    if (location !== windowLocation) {
-      window.history.replaceState(null, "", location);
+    if (!navigating && location.pathname + location.search !== windowLocation) {
+      window.history.replaceState(
+        null,
+        "",
+        location.pathname + location.search
+      );
     }
-  }, [location, windowLocation]);
+  }, [location, windowLocation, navigating]);
 
-  return root;
+  const routerContext = useMemo<RouterContext>(
+    () => ({ location, navigating }),
+    [location, navigating]
+  );
+
+  return (
+    <UNSAFE_RouterContext.Provider value={routerContext}>
+      {root}
+    </UNSAFE_RouterContext.Provider>
+  );
 }
 
-export async function hydrateApp(container: Element | Document = document) {
-  const payload: UNSAFE_ServerPayload = await createFromReadableStream(
+export function hydrateApp(container: Element | Document = document) {
+  const payload: Promise<UNSAFE_ServerPayload> = createFromReadableStream(
     rscStream,
     manifest,
     { callServer }
   );
 
-  startTransition(() => {
+  startTransition(async () => {
     hydrateRoot(
       container,
       <StrictMode>
-        <Shell {...payload} />
+        <Shell payload={payload} />
       </StrictMode>,
       {
-        formState: payload.formState,
+        formState: (await payload).formState,
       }
     );
   });
@@ -109,15 +138,20 @@ export async function hydrateApp(container: Element | Document = document) {
           signal: abortController.signal,
         });
 
-        const payload: UNSAFE_ServerPayload = await createFromFetch(
+        const payloadPromise: UNSAFE_ServerPayload = createFromFetch(
           fetchPromise,
           manifest,
           { callServer }
         );
 
-        startedTransition = true;
-        startTransition(() => {
-          api.updatePayload?.((existing) => ({ ...existing, ...payload }));
+        api.updatePayload?.((promise) => {
+          startedTransition = true;
+          return Promise.all([promise, payloadPromise]).then(
+            ([existing, payload]) => ({
+              ...existing,
+              ...payload,
+            })
+          );
         });
       },
     });

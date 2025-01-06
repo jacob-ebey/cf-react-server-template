@@ -93,6 +93,9 @@ export function ValidatedForm<
       reflowListeners: new Set(),
     };
   }
+  if (instanceCtx.forms[id].issues !== initialIssues) {
+    instanceCtx.forms[id].issues = initialIssues;
+  }
 
   const formState = instanceCtx.forms[id];
 

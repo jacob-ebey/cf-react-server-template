@@ -1,5 +1,6 @@
-import { useId } from "react";
+import { Suspense } from "react";
 import { Check, Loader } from "lucide-react";
+import * as v from "valibot";
 
 import {
   getActionState,
@@ -12,9 +13,15 @@ import {
 } from "framework/server";
 
 import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
 
-import { Layout } from "./todo.client";
+import {
+  AddTodoForm,
+  CreateTodoListForm,
+  Layout,
+  TodoListItem,
+} from "./todo.client";
+import { AddTodoSchema, CreateTodoListSchema } from "./todo.shared";
+import { GlobalLoader } from "~/components/ui/global-loader";
 
 export default async function TodoRoute() {
   const { USER } = getEnv();
@@ -49,7 +56,7 @@ export default async function TodoRoute() {
             <a href="/todo" className="p a">
               All Lists
             </a>
-            {todoLists}
+            <Suspense fallback={<GlobalLoader loading />}>{todoLists}</Suspense>
           </div>
         }
       >
@@ -58,8 +65,37 @@ export default async function TodoRoute() {
             <TodoList todoListId={todoList.id} title={todoList.title} />
           ) : (
             <div className="space-y-20">
-              <NewTodoListForm userId={userId} />
-              {todoLists}
+              <CreateTodoListForm
+                initialIssues={getActionState<v.FlatErrors<any>>(
+                  "create-todo-list"
+                )}
+                create={async (formData) => {
+                  "use server";
+
+                  const parsed = v.safeParse(
+                    CreateTodoListSchema,
+                    Object.fromEntries(formData)
+                  );
+                  if (!parsed.success) {
+                    setActionState(
+                      "create-todo-list",
+                      v.flatten(parsed.issues)
+                    );
+                    return;
+                  }
+
+                  const { title } = parsed.output;
+
+                  const { USER } = getEnv();
+                  const userApi = USER.get(USER.idFromName(userId));
+                  const todoList = await userApi.addTodoList({ title });
+                  redirect(`/todo/${todoList.id}`);
+                }}
+              />
+
+              <Suspense fallback={<GlobalLoader loading />}>
+                {todoLists}
+              </Suspense>
             </div>
           )}
         </div>
@@ -77,70 +113,23 @@ async function TodoLists({ userId }: { userId: string }) {
     <ul className="!p-0 space-y-6">
       {todoLists.map(({ id, title }) => {
         return (
-          <li key={id} className="flex items-center justify-between">
-            <a href={`/todo/${id}`} className="a">
-              {title}
-            </a>
-            <form
-              action={async () => {
-                "use server";
-                const { USER } = getEnv();
-                const userApi = USER.get(USER.idFromName(userId));
-                await userApi.deleteTodoList({ id });
-                redirect("/todo");
-              }}
-            >
-              <Button type="submit" variant="destructive">
-                Delete
-              </Button>
-            </form>
-          </li>
+          <TodoListItem
+            key={id}
+            id={id}
+            title={title}
+            delete={async () => {
+              "use server";
+              const { USER } = getEnv();
+              const userApi = USER.get(USER.idFromName(userId));
+              await userApi.deleteTodoList({ id });
+              redirect("/todo");
+            }}
+          />
         );
       })}
     </ul>
   ) : (
     <p className="p">No lists yet.</p>
-  );
-}
-
-function NewTodoListForm({ userId }: { userId: string }) {
-  const createTodoListError = getActionState<string>("create-todo-list");
-  const titleErrorId = useId();
-
-  return (
-    <form
-      className="flex flex-col space-y-6"
-      action={async (formData) => {
-        "use server";
-        const title = formData.get("title");
-        if (typeof title !== "string" || !title.trim()) {
-          setActionState("create-todo-list", "Please enter a title.");
-          return;
-        }
-
-        const { USER } = getEnv();
-        const userApi = USER.get(USER.idFromName(userId));
-        const todoList = await userApi.addTodoList({ title });
-        redirect(`/todo/${todoList.id}`);
-      }}
-    >
-      <label className="w-full">
-        <span className="sr-only">New list name</span>
-        <Input
-          className="w-full"
-          type="text"
-          name="title"
-          placeholder="Enter list name"
-          aria-describedby={titleErrorId}
-        />
-      </label>
-      {createTodoListError ? (
-        <p id={titleErrorId} className="text-destructive">
-          {createTodoListError}
-        </p>
-      ) : null}
-      <Button type="submit">Create Todo List</Button>
-    </form>
   );
 }
 
@@ -159,7 +148,28 @@ async function TodoList({
     <div className="space-y-6">
       <h1 className="h1">{title}</h1>
 
-      <AddTodoForm todoListId={todoListId} />
+      <AddTodoForm
+        initialIssues={getActionState<v.FlatErrors<any>>("add-todo")}
+        add={async (formData) => {
+          "use server";
+
+          const parsed = v.safeParse(
+            AddTodoSchema,
+            Object.fromEntries(formData)
+          );
+
+          if (!parsed.success) {
+            setActionState("add-todo", v.flatten(parsed.issues));
+            return;
+          }
+
+          const { text } = parsed.output;
+
+          const { TODO_LIST } = getEnv();
+          const todoListApi = TODO_LIST.get(TODO_LIST.idFromName(todoListId));
+          await todoListApi.addTodo({ text });
+        }}
+      />
 
       <ul className="space-y-6 mt-20">
         {todos.map(({ id, text, completed }) => (
@@ -211,45 +221,5 @@ async function TodoList({
         ))}
       </ul>
     </div>
-  );
-}
-
-function AddTodoForm({ todoListId }: { todoListId: string }) {
-  const createTodoError = getActionState<string>("create-todo");
-  const textErrorId = useId();
-
-  return (
-    <form
-      className="flex flex-col space-y-6"
-      action={async (formData) => {
-        "use server";
-        const text = formData.get("text");
-        if (typeof text !== "string" || !text.trim()) {
-          setActionState("create-todo-list", "Please enter a todo.");
-          return;
-        }
-
-        const { TODO_LIST } = getEnv();
-        const todoListApi = TODO_LIST.get(TODO_LIST.idFromName(todoListId));
-        await todoListApi.addTodo({ text });
-      }}
-    >
-      <label className="w-full">
-        <span className="sr-only">What do you need to do?</span>
-        <Input
-          className="w-full"
-          type="text"
-          name="text"
-          placeholder="What do you need to do?"
-          aria-describedby={textErrorId}
-        />
-      </label>
-      {createTodoError ? (
-        <p id={textErrorId} className="text-destructive">
-          {createTodoError}
-        </p>
-      ) : null}
-      <Button type="submit">Add Todo</Button>
-    </form>
   );
 }

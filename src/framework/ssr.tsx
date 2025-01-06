@@ -4,6 +4,8 @@ import RDS from "react-dom/server";
 import { injectRSCPayload } from "rsc-html-stream/server";
 // @ts-expect-error - no types yet
 import { bootstrapModules, manifest } from "virtual:react-manifest";
+
+import { UNSAFE_RouterContext } from "./client";
 import type { UNSAFE_ServerPayload } from "./server";
 
 export async function renderServerResponse(
@@ -58,6 +60,14 @@ export async function renderServerResponse(
     return serverResponse;
   }
 
+  if (serverResponse.status >= 300 && serverResponse.status < 400) {
+    return new Response(serverResponse.body, {
+      headers: serverResponse.headers,
+      status: serverResponse.status,
+      duplex: serverResponse.body ? "half" : undefined,
+    } as ResponseInit);
+  }
+
   if (!serverResponse.body) {
     throw new Error("Expected response body");
   }
@@ -73,7 +83,10 @@ export async function renderServerResponse(
   );
 
   const url = new URL(request.url);
-  if (payload.location !== url.pathname + url.search) {
+  if (
+    payload.location.pathname + payload.location.search !==
+    url.pathname + url.search
+  ) {
     return new Response(null, {
       headers: serverResponse.headers,
       status:
@@ -83,12 +96,19 @@ export async function renderServerResponse(
     });
   }
 
-  const body = await RDS.renderToReadableStream(payload.root, {
-    bootstrapModules,
-    // @ts-expect-error - no types yet
-    formState: payload.formState,
-    signal: request.signal,
-  });
+  const body = await RDS.renderToReadableStream(
+    <UNSAFE_RouterContext.Provider
+      value={{ location: payload.location, navigating: false }}
+    >
+      {payload.root}
+    </UNSAFE_RouterContext.Provider>,
+    {
+      bootstrapModules,
+      // @ts-expect-error - no types yet
+      formState: payload.formState,
+      signal: request.signal,
+    }
+  );
 
   const headers = new Headers(serverResponse.headers);
   headers.set("Content-Type", "text/html; charset=utf-8");

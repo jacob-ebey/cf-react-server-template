@@ -10,7 +10,9 @@ import { manifest } from "virtual:react-manifest";
 import type { UNSAFE_ServerPayload } from "./server";
 
 export const api: {
-  updatePayload?: React.Dispatch<React.SetStateAction<UNSAFE_ServerPayload>>;
+  updatePayload?: React.Dispatch<
+    React.SetStateAction<Promise<UNSAFE_ServerPayload>>
+  >;
 } = {};
 
 export async function callServer(id: string, args: unknown) {
@@ -25,7 +27,7 @@ export async function callServer(id: string, args: unknown) {
     })
   );
 
-  const payload: UNSAFE_ServerPayload = await createFromFetch(
+  const payloadPromise: UNSAFE_ServerPayload = createFromFetch(
     fetchPromise,
     manifest,
     {
@@ -33,11 +35,14 @@ export async function callServer(id: string, args: unknown) {
     }
   );
 
-  startTransition(() => {
-    api.updatePayload?.((existing) => ({ ...existing, ...payload }));
-  });
+  api.updatePayload?.((promise) =>
+    Promise.all([promise, payloadPromise]).then(([existing, payload]) => ({
+      ...existing,
+      ...payload,
+    }))
+  );
 
-  return payload.returnValue;
+  return (await payloadPromise).returnValue;
 }
 
 export function createServerReference(imp: unknown, id: string, name: string) {
