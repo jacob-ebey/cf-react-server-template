@@ -268,7 +268,6 @@ export async function renderApp(
     );
     if (ctx.redirect) {
       headers.set("Location", ctx.redirect);
-      abort();
       return new Response(null, {
         status: ctx.status,
         statusText: ctx.statusText,

@@ -1,7 +1,14 @@
 "use client";
 
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { useActionState, useCallback, useState, useTransition } from "react";
+import { Check, Loader, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import {
+  useActionState,
+  useCallback,
+  useOptimistic,
+  useState,
+  useTransition,
+} from "react";
+import { requestFormReset } from "react-dom";
 import * as v from "valibot";
 
 import { Button } from "~/components/ui/button";
@@ -16,7 +23,6 @@ import { logoutAction } from "~/global-actions";
 import { cn } from "~/lib/utils";
 
 import { AddTodoSchema, CreateTodoListSchema } from "./todo.shared";
-import { requestFormReset } from "react-dom";
 
 export function Layout({
   children,
@@ -213,5 +219,87 @@ export function CreateTodoListForm({
 
       <Button type="submit">Create Todo List</Button>
     </ValidatedForm>
+  );
+}
+
+export function TodoItem({
+  completed: _completed,
+  text,
+  delete: _delete,
+  toggle,
+}: {
+  completed: boolean;
+  text: string;
+  delete: () => void | Promise<void>;
+  toggle: () => void | Promise<void>;
+}) {
+  const [deleted, deleteAction, isDeleting] = useActionState(async () => {
+    await _delete();
+    return true;
+  }, false);
+  const [completed, optimisticToggle] = useOptimistic<boolean, void>(
+    _completed,
+    (completed) => {
+      return !completed;
+    }
+  );
+  const [isToggling, startToggling] = useTransition();
+
+  if (deleted) return null;
+
+  if (isDeleting) {
+    return (
+      <li>
+        <GlobalLoader loading />
+        <span className="sr-only">Deleting {text}</span>
+      </li>
+    );
+  }
+
+  return (
+    <li className="flex items-center justify-between">
+      <GlobalLoader loading={isToggling} />
+      <form
+        action={toggle}
+        onSubmit={(event) => {
+          event.preventDefault();
+          startToggling(async () => {
+            optimisticToggle();
+            await toggle();
+          });
+        }}
+      >
+        <Button type="submit" size="icon">
+          {completed ? (
+            <>
+              <span className="sr-only">
+                Completed (click to set uncompleted)
+              </span>
+              <Check />
+            </>
+          ) : (
+            <>
+              <span className="sr-only">
+                Uncompleted (click to set completed)
+              </span>
+              <Loader />
+            </>
+          )}
+        </Button>
+      </form>
+      <div>{text}</div>
+      <form
+        action={deleteAction}
+        onSubmit={(event) => {
+          if (isDeleting) {
+            event.preventDefault();
+          }
+        }}
+      >
+        <Button type="submit" variant="destructive">
+          Delete
+        </Button>
+      </form>
+    </li>
   );
 }
