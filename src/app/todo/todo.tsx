@@ -60,7 +60,7 @@ export default async function TodoRoute() {
             <a href="/todo" className="p a">
               All Lists
             </a>
-            <Suspense fallback={<GlobalLoader loading />}>{todoLists}</Suspense>
+            <Suspense>{todoLists}</Suspense>
           </div>
         }
       >
@@ -154,9 +154,7 @@ export default async function TodoRoute() {
                 }}
               />
 
-              <Suspense fallback={<GlobalLoader loading />}>
-                {todoLists}
-              </Suspense>
+              <Suspense>{todoLists}</Suspense>
             </div>
           )}
         </div>

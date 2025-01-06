@@ -18,11 +18,11 @@ export function LoginForm({
   initialIssues?: v.FlatErrors<any>;
   login: (formData: FormData) => Promise<void>;
 }) {
-  const [transitioning, startTransition] = useTransition();
+  const [loggingIn, startLoggingIn] = useTransition();
 
   return (
     <>
-      <GlobalLoader loading={transitioning} />
+      <GlobalLoader loading={loggingIn} />
       <ValidatedForm
         className="space-y-6"
         initialIssues={initialIssues}
@@ -33,10 +33,10 @@ export function LoginForm({
           if (event.defaultPrevented) return;
           event.preventDefault();
 
-          if (transitioning) return;
+          if (loggingIn) return;
 
           const formData = new FormData(event.currentTarget);
-          startTransition(async () => {
+          startLoggingIn(async () => {
             await login(formData);
           });
         }}

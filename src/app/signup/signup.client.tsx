@@ -18,11 +18,11 @@ export function SignupForm({
   initialIssues?: v.FlatErrors<any>;
   signup: (formData: FormData) => Promise<void>;
 }) {
-  const [transitioning, startTransition] = useTransition();
+  const [signingUp, startSigningUp] = useTransition();
 
   return (
     <>
-      <GlobalLoader loading={transitioning} />
+      <GlobalLoader loading={signingUp} />
       <ValidatedForm
         className="space-y-6"
         initialIssues={initialIssues}
@@ -33,10 +33,10 @@ export function SignupForm({
           if (event.defaultPrevented) return;
           event.preventDefault();
 
-          if (transitioning) return;
+          if (signingUp) return;
 
           const formData = new FormData(event.currentTarget);
-          startTransition(async () => {
+          startSigningUp(async () => {
             await signup(formData);
           });
         }}
