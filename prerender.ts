@@ -6,7 +6,7 @@ import { $ } from "execa";
 const PATHS_TO_PRERENDER = ["/", "/signup"];
 
 const port = 4173;
-const host = "127.0.0.1";
+const host = "localhost";
 const proc = $`pnpm preview --host ${host} --port ${port}`;
 
 async function waitForPort() {
@@ -29,7 +29,7 @@ try {
   for (const pathname of PATHS_TO_PRERENDER) {
     console.log(`prerendering ${pathname}`);
     const response = await fetch(
-      new URL(pathname, "http://localhost:4173").href,
+      new URL(pathname, `http://${host}:${port}`).href,
       {
         headers: {
           PRERENDER: "1",
