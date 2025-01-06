@@ -1,3 +1,5 @@
+// Dependant on https://github.com/flarelabs-net/vite-plugin-cloudflare/pull/125
+
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 
