@@ -10,6 +10,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useOptimistic,
   useState,
   useSyncExternalStore,
   useTransition,
@@ -21,7 +22,7 @@ import { manifest } from "virtual:react-manifest";
 
 import { UNSAFE_RouterContext, type RouterContext } from "./client.js";
 import { api, callServer } from "./references.browser.js";
-import type { UNSAFE_ServerPayload } from "./server.js";
+import type { Location, UNSAFE_ServerPayload } from "./server.js";
 
 function getLocationSnapshot() {
   return window.location.pathname + window.location.search;
@@ -52,6 +53,9 @@ function locationSubscribe(callback: () => void) {
 function Shell({ payload }: { payload: Promise<UNSAFE_ServerPayload> }) {
   const [promise, setPayload] = useState(payload);
   const [navigating, startNavigation] = useTransition();
+  const [nextLocation, setNextLocation] = useState<Location | undefined>(
+    undefined
+  );
 
   const { location, root } = use(promise);
 
@@ -79,9 +83,72 @@ function Shell({ payload }: { payload: Promise<UNSAFE_ServerPayload> }) {
     }
   }, [location, windowLocation, navigating]);
 
+  useEffect(() => {
+    const handler = (event: NavigateEvent) => {
+      if (
+        !event.canIntercept ||
+        event.defaultPrevented ||
+        event.downloadRequest ||
+        event.navigationType === "reload"
+      ) {
+        return;
+      }
+
+      const url = new URL(event.destination.url);
+
+      if (url.origin !== window.location.origin) {
+        return;
+      }
+
+      setNextLocation({
+        pathname: url.pathname,
+        search: url.search,
+      });
+
+      event.intercept({
+        async handler() {
+          const abortController = new AbortController();
+          let startedTransition = false;
+          event.signal.addEventListener("abort", () => {
+            if (startedTransition) return;
+            abortController.abort();
+          });
+          const fetchPromise = fetch(url, {
+            body: event.formData,
+            headers: {
+              Accept: "text/x-component",
+            },
+            method: event.formData ? "POST" : "GET",
+            signal: abortController.signal,
+          });
+
+          const payloadPromise: UNSAFE_ServerPayload = createFromFetch(
+            fetchPromise,
+            manifest,
+            { callServer }
+          );
+
+          api.updatePayload?.((promise) => {
+            startedTransition = true;
+            return Promise.all([promise, payloadPromise]).then(
+              ([existing, payload]) => ({
+                ...existing,
+                ...payload,
+              })
+            );
+          });
+        },
+      });
+    };
+    window.navigation?.addEventListener("navigate", handler);
+    return () => {
+      window.navigation?.removeEventListener("navigate", handler);
+    };
+  });
+
   const routerContext = useMemo<RouterContext>(
-    () => ({ location, navigating }),
-    [location, navigating]
+    () => ({ location, navigating, nextLocation }),
+    [location, navigating, nextLocation]
   );
 
   return (
@@ -108,52 +175,5 @@ export function hydrateApp(container: Element | Document = document) {
         formState: (await payload).formState,
       }
     );
-  });
-
-  window.navigation?.addEventListener("navigate", (event) => {
-    if (
-      !event.canIntercept ||
-      event.defaultPrevented ||
-      event.downloadRequest ||
-      // !event.userInitiated ||
-      event.navigationType === "reload"
-    ) {
-      return;
-    }
-
-    event.intercept({
-      async handler() {
-        const abortController = new AbortController();
-        let startedTransition = false;
-        event.signal.addEventListener("abort", () => {
-          if (startedTransition) return;
-          abortController.abort();
-        });
-        const fetchPromise = fetch(event.destination.url, {
-          body: event.formData,
-          headers: {
-            Accept: "text/x-component",
-          },
-          method: event.formData ? "POST" : "GET",
-          signal: abortController.signal,
-        });
-
-        const payloadPromise: UNSAFE_ServerPayload = createFromFetch(
-          fetchPromise,
-          manifest,
-          { callServer }
-        );
-
-        api.updatePayload?.((promise) => {
-          startedTransition = true;
-          return Promise.all([promise, payloadPromise]).then(
-            ([existing, payload]) => ({
-              ...existing,
-              ...payload,
-            })
-          );
-        });
-      },
-    });
   });
 }

@@ -5,6 +5,7 @@ import type { Location } from "./server";
 export type RouterContext = {
   location: Location;
   navigating: boolean;
+  nextLocation?: Location;
 };
 
 export const UNSAFE_RouterContext = createContext<RouterContext | null>(null);
@@ -21,6 +22,18 @@ export function useLocation() {
   return routerContext().location;
 }
 
-export function useNavigating() {
-  return routerContext().navigating;
+export function useNavigation() {
+  const ctx = routerContext();
+
+  if (ctx.navigating && ctx.nextLocation) {
+    return {
+      state: "navigating",
+      to: ctx.nextLocation,
+    } as const;
+  }
+
+  return {
+    state: "idle",
+    to: undefined,
+  } as const;
 }

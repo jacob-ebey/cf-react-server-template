@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import * as rr from "react-router";
 
-import { api } from "./references.browser";
+import { useNavigation } from "framework/client";
 
 export const Route = rr.Route;
 
@@ -21,6 +21,8 @@ export function ClientRouter({
   rendered: Record<string, React.ReactNode>;
   url: string;
 }) {
+  const navigation = useNavigation();
+
   const navigator = BROWSER_ENVIRONMENT
     ? useMemo<rr.Navigator>(
         () => ({
@@ -129,23 +131,41 @@ export function ClientRouter({
         historyAction: rr.NavigationType.Push,
         loaderData,
         location: {
-          hash: fullUrl.hash,
+          hash: "",
           key: "default",
           pathname: fullUrl.pathname,
           search: fullUrl.search,
           state: null,
         },
         matches: matches as any[],
-        navigation: {
-          state: "idle",
-          formAction: undefined,
-          formData: undefined,
-          formEncType: undefined,
-          formMethod: undefined,
-          json: undefined,
-          location: undefined,
-          text: undefined,
-        },
+        navigation:
+          navigation.state === "idle"
+            ? {
+                state: "idle",
+                formAction: undefined,
+                formData: undefined,
+                formEncType: undefined,
+                formMethod: undefined,
+                json: undefined,
+                location: undefined,
+                text: undefined,
+              }
+            : {
+                state: "loading",
+                formAction: undefined,
+                formData: undefined,
+                formEncType: undefined,
+                formMethod: undefined,
+                json: undefined,
+                location: {
+                  hash: "",
+                  key: "default",
+                  pathname: navigation.to.pathname,
+                  search: navigation.to.search,
+                  state: null,
+                },
+                text: undefined,
+              },
         preventScrollReset: false,
         restoreScrollPosition: false,
         revalidation: "idle",
