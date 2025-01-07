@@ -2,6 +2,7 @@
 
 import {
   Link,
+  Outlet,
   useLoaderData,
   useLocation,
   useParams,
@@ -17,7 +18,15 @@ export function Component() {
   return (
     <main className="typography py-20 px-4 md:px-6 mx-auto w-full container">
       <h1>About!</h1>
-      <Link to="/">Home</Link>
+      <p>
+        <Link to="/">Home</Link>
+      </p>
+      <p>
+        <Link to="/about">About</Link>
+      </p>
+      <p>
+        <Link to="/about/param">Sub</Link>
+      </p>
       <p>Location:</p>
       <pre>
         <code>{JSON.stringify(location)}</code>
@@ -37,6 +46,8 @@ export function Component() {
       <pre>
         <code>{JSON.stringify(loaderData)}</code>
       </pre>
+
+      <Outlet />
     </main>
   );
 }

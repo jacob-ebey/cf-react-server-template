@@ -17,7 +17,12 @@ export function Component() {
   return (
     <main className="typography py-20 px-4 md:px-6 mx-auto w-full container">
       <h1>Home!</h1>
-      <Link to="/about/param">About</Link>
+      <p>
+        <Link to="/about">About</Link>
+      </p>
+      <p>
+        <Link to="/server">Server</Link>
+      </p>
       <p>Location:</p>
       <pre>
         <code>{JSON.stringify(location)}</code>

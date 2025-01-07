@@ -5,6 +5,7 @@ import * as rr from "react-router";
 
 import { useNavigation } from "framework/client";
 
+export const Outlet = rr.Outlet;
 export const Route = rr.Route;
 
 declare const BROWSER_ENVIRONMENT: boolean;
