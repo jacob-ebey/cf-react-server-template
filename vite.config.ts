@@ -16,6 +16,14 @@ export default defineConfig({
           },
         },
       },
+      define: {
+        BROWSER_ENVIRONMENT: true,
+      },
+    },
+    ssr: {
+      define: {
+        BROWSER_ENVIRONMENT: false,
+      },
     },
   },
   plugins: [

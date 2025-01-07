@@ -115,7 +115,7 @@ export function hydrateApp(container: Element | Document = document) {
       !event.canIntercept ||
       event.defaultPrevented ||
       event.downloadRequest ||
-      !event.userInitiated ||
+      // !event.userInitiated ||
       event.navigationType === "reload"
     ) {
       return;

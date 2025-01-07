@@ -32,9 +32,10 @@ declare global {
 export type UNSAFE_Context = {
   stage: "action" | "render" | "sent";
   actionState?: Record<string, unknown>;
-  destorySession?: true;
+  destroySession?: true;
   env: AppEnvironment;
-  headers: Headers;
+  requestHeaders: Headers;
+  responseHeaders: Headers;
   redirect?: string;
   session: Session<SessionData, SessionData>;
   status: number;
@@ -81,9 +82,9 @@ export function setCookieSession<T>(key: string, value: T) {
   ctxActionsOnly().session.set(key, value);
 }
 
-export function destoryCookieSession() {
+export function destroyCookieSession() {
   const context = ctxActionsOnly();
-  context.destorySession = true;
+  context.destroySession = true;
   for (const key of Object.keys(context.session.data)) {
     context.session.unset(key);
   }
@@ -94,11 +95,15 @@ export function getEnv() {
 }
 
 export function getURL() {
-  return ctx().url;
+  return new URL(ctx().url);
 }
 
-export function setHeader(key: string, value: string) {
-  ctxActionsOnly().headers.set(key, value);
+export function getHeaders() {
+  return new Headers(ctx().requestHeaders);
+}
+
+export function setHeader(key: string, value: string, append = false) {
+  ctxActionsOnly().responseHeaders[append ? "append" : "set"](key, value);
 }
 
 export function setStatus(status: number, statusText?: string) {
@@ -164,7 +169,8 @@ export async function renderApp(
     stage: "action",
     env,
     url,
-    headers: new Headers(),
+    requestHeaders: request.headers,
+    responseHeaders: new Headers(),
     session,
     status: 200,
     waitToFlushUntil: [],
@@ -218,10 +224,10 @@ export async function renderApp(
     }
 
     if (ctx.redirect) {
-      const headers = new Headers(ctx.headers);
+      const headers = new Headers(ctx.responseHeaders);
       headers.append(
         "Set-Cookie",
-        ctx.destorySession
+        ctx.destroySession
           ? await sessionStorage.destroySession(session)
           : await sessionStorage.commitSession(session)
       );
@@ -259,10 +265,10 @@ export async function renderApp(
     } while (ctx.waitToFlushUntil.length);
 
     ctx.stage = "sent";
-    const headers = new Headers(ctx.headers);
+    const headers = new Headers(ctx.responseHeaders);
     headers.append(
       "Set-Cookie",
-      ctx.destorySession
+      ctx.destroySession
         ? await sessionStorage.destroySession(session)
         : await sessionStorage.commitSession(session)
     );
