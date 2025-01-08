@@ -10,6 +10,7 @@ import type {
   DataRouteMatch,
   StaticHandlerContext,
 } from "react-router";
+import { createStaticHandler, matchRoutes } from "react-router";
 import { splitCookiesString } from "set-cookie-parser";
 
 import type {
@@ -26,8 +27,6 @@ import {
 } from "framework/server";
 // @ts-expect-error - no types yet
 import { manifest } from "virtual:react-manifest";
-
-import { createStaticHandler, matchRoutes } from "../react-router.rsc.js";
 
 export { matchRoutes };
 
