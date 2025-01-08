@@ -2,7 +2,7 @@
 
 // @ts-expect-error - no types yet
 import { createFromReadableStream } from "@jacob-ebey/react-server-dom-vite/client";
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo } from "react";
 import * as rr from "react-router";
 
 // @ts-expect-error - no types yet
@@ -15,18 +15,6 @@ declare const BROWSER_ENVIRONMENT: boolean;
 
 export function isReactRouterDataRequest(url: URL) {
   return url.pathname.endsWith(".data");
-}
-
-function subscribe() {
-  return () => {};
-}
-
-export function useHydrated() {
-  return useSyncExternalStore(
-    subscribe,
-    () => true,
-    () => false
-  );
 }
 
 export function ClientRouter({
@@ -52,8 +40,6 @@ export function ClientRouter({
   rendered: Record<string, React.ReactNode>;
   url: string;
 }) {
-  const hydrated = useHydrated();
-
   const lastRoute = useMemo(() => {
     if (!matches?.length) return null;
     let lastRoute: rr.RouteObject | null = null;
@@ -74,9 +60,6 @@ export function ClientRouter({
   }, [matches, rendered]);
 
   const router = useMemo(() => {
-    if (!lastRoute) return null;
-
-    const fullUrl = new URL(url);
     if (BROWSER_ENVIRONMENT) {
       return rr.createBrowserRouter(
         [
@@ -116,6 +99,7 @@ export function ClientRouter({
       );
     }
 
+    const fullUrl = new URL(url);
     return rr.UNSAFE_createRouter({
       history: {
         action: rr.NavigationType.Push,
@@ -159,58 +143,9 @@ export function ClientRouter({
       },
       routes: [lastRoute].filter((r) => !!r),
     });
-  }, [lastRoute, hydrated]);
+  }, [lastRoute]);
 
-  if (!router || !matches?.length) return null;
-
-  if (BROWSER_ENVIRONMENT && hydrated) {
-    return <rr.RouterProvider router={router} />;
-  }
-
-  const fullUrl = new URL(url);
-
-  return (
-    <rr.StaticRouterProvider
-      context={{
-        actionData: null,
-        actionHeaders: {},
-        basename: "",
-        errors: null,
-        loaderData,
-        loaderHeaders: {},
-        location: {
-          hash: "",
-          key: "default",
-          pathname: fullUrl.pathname,
-          search: fullUrl.search,
-          state: null,
-        },
-        matches: matches.map((match) => ({
-          params,
-          pathname: match.pathname,
-          pathnameBase: match.pathnameBase,
-          route: match.index
-            ? {
-                id: match.id,
-                index: match.index,
-                path: match.path,
-                action: match.hasAction,
-                loader: match.hasLoader,
-              }
-            : {
-                id: match.id,
-                path: match.path,
-                action: match.hasAction,
-                loader: match.hasLoader,
-              },
-        })),
-        statusCode: 200,
-        _deepestRenderedBoundaryId: undefined,
-      }}
-      router={router}
-      hydrate={false}
-    />
-  );
+  return <rr.RouterProvider router={router} />;
 }
 
 function singleFetchActionStrategy(

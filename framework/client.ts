@@ -1,4 +1,4 @@
-import { createContext, use } from "react";
+import { createContext, use, useSyncExternalStore } from "react";
 
 import type { Location } from "./server";
 
@@ -36,4 +36,16 @@ export function useNavigation() {
     state: "idle",
     to: undefined,
   } as const;
+}
+
+function subscribe() {
+  return () => {};
+}
+
+export function useHydrated() {
+  return useSyncExternalStore(
+    subscribe,
+    () => true,
+    () => false
+  );
 }

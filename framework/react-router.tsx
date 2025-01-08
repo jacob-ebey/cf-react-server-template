@@ -7,6 +7,7 @@ import type {
   LazyRouteFunction,
   LoaderFunction,
   RouteObject,
+  DataRouteMatch,
   StaticHandlerContext,
 } from "react-router";
 import { splitCookiesString } from "set-cookie-parser";
@@ -17,7 +18,12 @@ import type {
   SingleFetchResults,
 } from "framework/react-router.client";
 import { ClientRouter } from "framework/react-router.client";
-import { getHeaders, getURL, waitToFlushUntil } from "framework/server";
+import {
+  getHeaders,
+  getURL,
+  redirect,
+  waitToFlushUntil,
+} from "framework/server";
 // @ts-expect-error - no types yet
 import { manifest } from "virtual:react-manifest";
 
@@ -25,125 +31,68 @@ import { createStaticHandler, matchRoutes } from "../react-router.rsc.js";
 
 export { matchRoutes };
 
-export type RouteConfig = RouteObject[];
-
-function randomId() {
-  const bytes = new Uint8Array(8);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
-    ""
-  );
-}
-
-export function index(
-  load: () => Promise<{
-    action?: ActionFunction;
-    Component?: React.ComponentType;
-    ErrorBoundary?: React.ComponentType;
-    loader?: LoaderFunction;
-  }>,
-  { id }: { id?: string } = {}
-): RouteObject {
-  return {
-    id: id || randomId(),
-    index: true,
-    // action: true,
-    // loader: true,
-    lazy: (async () => {
-      const mod = await load();
-      return {
-        action: mod.action,
-        // index: true,
-        Component: mod.Component,
-        ErrorBoundary: mod.ErrorBoundary ?? null,
-        loader: mod.loader,
-      };
-    }) satisfies LazyRouteFunction<RouteObject>,
-  };
-}
-
-export function route(
-  path: string,
-  load: () => Promise<{
-    action?: ActionFunction;
-    Component?: React.ComponentType;
-    ErrorBoundary?: React.ComponentType;
-    loader?: LoaderFunction;
-  }>,
-  { children, id }: { children?: RouteObject[]; id?: string } = {}
-): RouteObject {
-  return {
-    id: id || randomId(),
-    path,
-    children,
-    // action: true,
-    // loader: true,
-    lazy: (async () => {
-      const mod = await load();
-      return {
-        action: mod.action,
-        Component: mod.Component,
-        ErrorBoundary: mod.ErrorBoundary ?? null,
-        loader: mod.loader,
-      };
-    }) satisfies LazyRouteFunction<RouteObject>,
-  };
-}
-
 export async function ServerRouter({ routes }: { routes: RouteConfig }) {
   const url = getURL();
   const headers = getHeaders();
 
-  const { loadedRoutes, loaderData, matches, hasLoaders } =
-    await waitToFlushUntil(async () => {
-      const matches = matchRoutes(routes, url.pathname + url.search);
-      let loaderData = {};
-      let hasLoaders: Record<string, boolean> = {};
-      const loadRoutePromises: Promise<unknown>[] = [];
-      if (matches?.length) {
-        const request = new Request(url, { headers });
-
-        // TODO: Call route actions
-
-        loaderData = Object.fromEntries(
-          await Promise.all(
-            matches.map(async (match) => {
-              const loadRoute = Promise.resolve(
-                match.route.lazy?.() || match.route
-              );
-              loadRoutePromises.push(loadRoute);
-              const route = await loadRoute;
-              hasLoaders[match.route.id!] = !!route.loader;
-              const loaderData =
-                typeof route.loader === "function"
-                  ? route.loader({
-                      params: match.params,
-                      request,
-                      // context
-                    })
-                  : undefined;
-              return [match.route.id, loaderData];
-            })
-          )
-        );
+  const result = await waitToFlushUntil(
+    async (): Promise<
+      | {
+          redirect: true;
+        }
+      | {
+          redirect: false;
+          loaderData: Record<string, unknown>;
+          matches: DataRouteMatch[];
+        }
+    > => {
+      const handler = createStaticHandler(routes);
+      // TODO: Handle POST requests
+      const context = await handler.query(new Request(url, { headers }));
+      if (isResponse(context)) {
+        const location = context.headers.get("Location");
+        if (!location || !isRedirectStatusCode(context.status)) {
+          throw new Error("Invalid response");
+        }
+        redirect(location, context.status);
+        return { redirect: true };
       }
 
       return {
-        matches,
-        loadedRoutes: await Promise.all(loadRoutePromises),
-        loaderData,
-        hasLoaders,
+        matches: context.matches,
+        loaderData: context.loaderData,
+        redirect: false,
       };
-    });
+    }
+  );
+
+  if (result.redirect) {
+    return;
+  }
+
+  const { loaderData, matches } = result;
+
+  let cache = new Map<string, RouteObject>();
+  const setupCache = (_routes: RouteObject[] = routes) => {
+    for (const route of _routes) {
+      cache.set(route.id!, route);
+      if (route.children) {
+        setupCache(route.children);
+      }
+    }
+  };
+  setupCache();
 
   const rendered: Record<string, React.ReactNode> = {};
-  for (let i = loadedRoutes.length - 1; i >= 0; i--) {
-    const route = loadedRoutes[i] as RouteObject;
-    const { id } = matches![i]!.route;
-    if (!id) throw new Error("Route id is required");
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const match = matches[i];
+
+    if (!match?.route.id) throw new Error("Route id is required");
+    const route = cache.get(match.route.id);
+    if (!route) throw new Error("Route not found");
 
     if (route.Component) {
-      rendered[id] = <route.Component />;
+      rendered[match.route.id] = <route.Component />;
     }
   }
 
@@ -161,16 +110,16 @@ export async function ServerRouter({ routes }: { routes: RouteConfig }) {
                 path: match.route.path,
                 pathname: match.pathname,
                 pathnameBase: match.pathnameBase,
-                hasAction: hasLoaders[match.route.id!]!,
-                hasLoader: hasLoaders[match.route.id!]!,
+                hasAction: !!match.route.action,
+                hasLoader: !!match.route.loader,
               }
             : {
                 id: match.route.id!,
                 path: match.route.path,
                 pathname: match.pathname,
                 pathnameBase: match.pathnameBase,
-                hasAction: hasLoaders[match.route.id!]!,
-                hasLoader: hasLoaders[match.route.id!]!,
+                hasAction: !!match.route.action,
+                hasLoader: !!match.route.loader,
               }
         ) ?? []
       }
@@ -422,4 +371,80 @@ function isResponse(value: any): value is Response {
 const redirectStatusCodes = new Set([301, 302, 303, 307, 308]);
 function isRedirectStatusCode(statusCode: number): boolean {
   return redirectStatusCodes.has(statusCode);
+}
+
+//--------------------------------------------------------------------
+// route config
+//--------------------------------------------------------------------
+
+export type RouteConfig = RouteObject[];
+
+function randomId() {
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    ""
+  );
+}
+
+export function index(
+  load: () => Promise<{
+    action?: ActionFunction;
+    Component?: React.ComponentType;
+    ErrorBoundary?: React.ComponentType;
+    loader?: LoaderFunction;
+  }>,
+  { id }: { id?: string } = {}
+): RouteObject {
+  const route = {
+    id: id || randomId(),
+    index: true,
+    lazy: (async () => {
+      const mod = await load();
+      route.action = mod.action;
+      route.Component = mod.Component;
+      route.ErrorBoundary = mod.ErrorBoundary ?? null;
+      route.loader = mod.loader;
+      route.lazy = undefined;
+      return {
+        action: mod.action,
+        Component: mod.Component,
+        ErrorBoundary: mod.ErrorBoundary ?? null,
+        loader: mod.loader,
+      };
+    }) satisfies LazyRouteFunction<RouteObject>,
+  } as RouteObject;
+  return route;
+}
+
+export function route(
+  path: string,
+  load: () => Promise<{
+    action?: ActionFunction;
+    Component?: React.ComponentType;
+    ErrorBoundary?: React.ComponentType;
+    loader?: LoaderFunction;
+  }>,
+  { children, id }: { children?: RouteObject[]; id?: string } = {}
+): RouteObject {
+  const route = {
+    id: id || randomId(),
+    path,
+    children,
+    lazy: (async () => {
+      const mod = await load();
+      route.action = mod.action;
+      route.Component = mod.Component;
+      route.ErrorBoundary = mod.ErrorBoundary ?? null;
+      route.loader = mod.loader;
+      route.lazy = undefined;
+      return {
+        action: mod.action,
+        Component: mod.Component,
+        ErrorBoundary: mod.ErrorBoundary ?? null,
+        loader: mod.loader,
+      };
+    }) satisfies LazyRouteFunction<RouteObject>,
+  } as RouteObject;
+  return route;
 }

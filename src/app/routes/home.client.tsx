@@ -1,5 +1,6 @@
 "use client";
 
+import { useHydrated } from "framework/client";
 import {
   Link,
   useFetcher,
@@ -11,6 +12,7 @@ import {
 import { Button } from "~/components/ui/button";
 
 export function Component() {
+  const hydrated = useHydrated();
   const location = useLocation();
   const params = useParams();
   const navigation = useNavigation();
@@ -29,7 +31,13 @@ export function Component() {
       </p>
       <p>Location:</p>
       <pre>
-        <code>{JSON.stringify(location)}</code>
+        <code>
+          {JSON.stringify(
+            hydrated
+              ? (({ key, hash, ...rest }) => ({ ...rest, hash, key }))(location)
+              : (({ key, hash, ...rest }) => rest)(location)
+          )}
+        </code>
       </pre>
 
       <p>Params:</p>
@@ -62,7 +70,7 @@ export function Component() {
         <code>
           {JSON.stringify({
             state: fetcher.state,
-            data: fetcher.data || null,
+            data: fetcher.data,
           })}
         </code>
       </pre>
