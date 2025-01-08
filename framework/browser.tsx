@@ -93,7 +93,6 @@ function Shell({ payload }: { payload: Promise<UNSAFE_ServerPayload> }) {
       ) {
         return;
       }
-      console.log("HERE!", event);
 
       const url = new URL(event.destination.url);
 

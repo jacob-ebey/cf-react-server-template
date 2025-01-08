@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build-router": "npx esbuild --bundle react-router.rsc.ts --format=esm --platform=node --outfile=react-router.rsc.js --minify --define:process.env.NODE_ENV=\\\"production\\\"",
+    "build-router": "npx esbuild --bundle --alias:react=./react-empty.js --alias:react-dom=./react-empty.js --alias:cookie=./react-empty.js --alias:set-cookie-parser=./react-empty.js --alias:turbo-stream=./react-empty.js react-router.rsc.ts --format=esm --platform=browser --main-fields=module --outfile=react-router.rsc.js --define:process.env.NODE_ENV=\\\"production\\\"",
     "build": "vite build --app",
     "check:types": "tsc --build",
     "deploy": "wrangler deploy -c dist/server/wrangler.json && pnpm wrangler deploy -c dist/ssr/wrangler.json ",
@@ -28,6 +28,8 @@
     "valibot": "1.0.0-beta.9"
   },
   "devDependencies": {
+    "@babel/generator": "^7.26.3",
+    "@babel/parser": "^7.26.3",
     "@cloudflare/workers-types": "^4.20241230.0",
     "@flarelabs-net/vite-plugin-cloudflare": "https://pkg.pr.new/flarelabs-net/vite-plugin-cloudflare/@flarelabs-net/vite-plugin-cloudflare@123",
     "@jacob-ebey/vite-react-server-dom": "0.0.12",
@@ -38,6 +40,7 @@
     "@types/react-dom": "^19.0.0",
     "@types/set-cookie-parser": "^2.4.10",
     "autoprefixer": "^10.4.20",
+    "babel-dead-code-elimination": "^1.0.8",
     "execa": "^9.5.2",
     "postcss": "^8.4.49",
     "rsc-html-stream": "0.0.4",

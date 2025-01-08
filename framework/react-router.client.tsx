@@ -13,6 +13,10 @@ export const Route = rr.Route;
 
 declare const BROWSER_ENVIRONMENT: boolean;
 
+export function isReactRouterDataRequest(url: URL) {
+  return url.pathname.endsWith(".data");
+}
+
 function subscribe() {
   return () => {};
 }
@@ -96,8 +100,6 @@ export function ClientRouter({
             console.log("PATCH ROUTES", args);
           },
           dataStrategy({ request, matches, fetcherKey }) {
-            console.log("DATA STRATEGY", matches, fetcherKey);
-
             if (request.method !== "GET") {
               return singleFetchActionStrategy(request, matches);
             }
@@ -319,7 +321,6 @@ async function fetchSingleLoader(
   let singleLoaderUrl = new URL(url);
   singleLoaderUrl.searchParams.set("_routes", routeId);
   let { data } = await fetchAndDecode(singleLoaderUrl, init);
-  console.log("UNWRAPPING");
   return unwrapSingleFetchResults(data as SingleFetchResults, routeId);
   // });
 }
@@ -378,7 +379,6 @@ function unwrapSingleFetchResults(
   results: SingleFetchResults,
   routeId: string
 ) {
-  console.log(routeId, results);
   if ("redirect" in results) {
     return unwrapSingleFetchResult(results.redirect, routeId);
   }

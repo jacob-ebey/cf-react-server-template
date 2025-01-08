@@ -58,11 +58,7 @@ export async function renderServerResponse(
 
   const url = new URL(request.url);
 
-  if (
-    url.pathname.endsWith(".data") ||
-    isDataRequest ||
-    (!isDataRequest && isPrerendered)
-  ) {
+  if (isDataRequest || (!isDataRequest && isPrerendered)) {
     return serverResponse;
   }
 

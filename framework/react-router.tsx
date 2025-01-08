@@ -21,13 +21,19 @@ import { getHeaders, getURL, waitToFlushUntil } from "framework/server";
 // @ts-expect-error - no types yet
 import { manifest } from "virtual:react-manifest";
 
-import { createStaticHandler, matchRoutes } from "../../react-router.rsc.js";
-
-import { randomId } from "~/lib/utils";
+import { createStaticHandler, matchRoutes } from "../react-router.rsc.js";
 
 export { matchRoutes };
 
 export type RouteConfig = RouteObject[];
+
+function randomId() {
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    ""
+  );
+}
 
 export function index(
   load: () => Promise<{
@@ -107,7 +113,7 @@ export async function ServerRouter({ routes }: { routes: RouteConfig }) {
               );
               loadRoutePromises.push(loadRoute);
               const route = await loadRoute;
-              hasLoaders[match.route.id] = !!route.loader;
+              hasLoaders[match.route.id!] = !!route.loader;
               const loaderData =
                 typeof route.loader === "function"
                   ? route.loader({
@@ -147,15 +153,26 @@ export async function ServerRouter({ routes }: { routes: RouteConfig }) {
       params={matches?.[0]?.params ?? {}}
       rendered={rendered}
       matches={
-        matches?.map((match) => ({
-          id: match.route.id!,
-          index: match.route.index,
-          path: match.route.path,
-          pathname: match.pathname,
-          pathnameBase: match.pathnameBase,
-          hasAction: hasLoaders[match.route.id!],
-          hasLoader: hasLoaders[match.route.id!],
-        })) ?? []
+        matches?.map((match) =>
+          match.route.index
+            ? {
+                id: match.route.id!,
+                index: match.route.index,
+                path: match.route.path,
+                pathname: match.pathname,
+                pathnameBase: match.pathnameBase,
+                hasAction: hasLoaders[match.route.id!]!,
+                hasLoader: hasLoaders[match.route.id!]!,
+              }
+            : {
+                id: match.route.id!,
+                path: match.route.path,
+                pathname: match.pathname,
+                pathnameBase: match.pathnameBase,
+                hasAction: hasLoaders[match.route.id!]!,
+                hasLoader: hasLoaders[match.route.id!]!,
+              }
+        ) ?? []
       }
       url={url.href}
     />
