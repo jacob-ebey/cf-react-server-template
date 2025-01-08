@@ -57,7 +57,7 @@ function ctx() {
 function ctxActionsOnly() {
   const context = ctx();
   if (context.stage !== "action") {
-    throw new Error("Response already sent");
+    throw new Error("Cannot access context in render or sent stage");
   }
   return context;
 }
@@ -107,7 +107,10 @@ export function setHeader(key: string, value: string, append = false) {
 }
 
 export function setStatus(status: number, statusText?: string) {
-  const context = ctxActionsOnly();
+  const context = ctx();
+  if (context.stage === "sent") {
+    throw new Error("Response already sent");
+  }
   if (context.redirect) {
     throw new Error("Cannot set status after redirect");
   }
