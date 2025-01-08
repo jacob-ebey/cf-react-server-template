@@ -2,7 +2,7 @@
 
 // @ts-expect-error - no types yet
 import { createFromReadableStream } from "@jacob-ebey/react-server-dom-vite/client";
-import { useMemo } from "react";
+import { createElement, Fragment, useEffect, useMemo, useRef } from "react";
 import * as rr from "react-router";
 
 // @ts-expect-error - no types yet
@@ -13,94 +13,130 @@ export const Route = rr.Route;
 
 declare const BROWSER_ENVIRONMENT: boolean;
 
+export type RouteManifest = {
+  id: string;
+  index?: boolean;
+  path?: string;
+  clientModule?: string;
+  hasAction?: boolean;
+  hasClientAction?: boolean;
+  hasClientLoader?: boolean;
+  hasLoader?: boolean;
+  children?: RouteManifest[];
+};
+
+export type RoutesManifest = RouteManifest[];
+
 export function isReactRouterDataRequest(url: URL) {
   return url.pathname.endsWith(".data");
 }
 
 export function ClientRouter({
   loaderData,
-  matches,
-  params,
   rendered,
+  routesManifest,
   url,
 }: {
   loaderData: Record<string, unknown>;
-  matches:
-    | {
-        id: string;
-        index?: boolean;
-        path?: string;
-        pathname: string;
-        pathnameBase: string;
-        hasAction: boolean;
-        hasLoader: boolean;
-      }[]
-    | null;
-  params: rr.Params<string>;
   rendered: Record<string, React.ReactNode>;
+  routesManifest: RoutesManifest;
   url: string;
 }) {
-  const lastRoute = useMemo(() => {
-    if (!matches?.length) return null;
-    let lastRoute: rr.RouteObject | null = null;
-    for (let i = matches.length - 1; i >= 0; i--) {
-      const match = matches[i];
-      if (!match) continue;
-      lastRoute = {
-        id: match.id,
-        index: match.index,
-        path: match.path,
-        element: rendered[match.id],
-        children: lastRoute ? [lastRoute] : undefined,
-        action: match.hasAction,
-        loader: match.hasLoader,
-      } as rr.RouteObject;
-    }
-    return lastRoute;
-  }, [matches, rendered]);
+  const renderedRef = useRef(rendered);
+  renderedRef.current = rendered;
 
-  const router = useMemo(() => {
+  useEffect(() => {
+    window.__ROUTER_DISABLED__ = true;
+    return () => {
+      window.__ROUTER_DISABLED__ = false;
+    };
+  }, []);
+
+  const routes = useMemo(() => {
+    const createRoutesRecursive = (
+      manifest: RoutesManifest,
+      routes: rr.RouteObject[]
+    ) => {
+      for (const entry of manifest) {
+        const route: rr.RouteObject = entry.index
+          ? {
+              id: entry.id,
+              index: entry.index,
+              path: entry.path,
+              element: createElement(() => {
+                const location = rr.useLocation();
+
+                return (
+                  <Fragment key={location.key}>
+                    {renderedRef.current[entry.id]}
+                  </Fragment>
+                );
+              }),
+              action: entry.hasClientAction || entry.hasAction,
+              loader: entry.hasClientLoader || entry.hasLoader,
+            }
+          : {
+              id: entry.id,
+              path: entry.path,
+              element: createElement(() => {
+                return renderedRef.current[entry.id];
+              }),
+              children: entry.children
+                ? createRoutesRecursive(entry.children, [])
+                : undefined,
+              action: entry.hasClientAction || entry.hasAction,
+              loader: entry.hasClientLoader || entry.hasLoader,
+            };
+        routes.push(route);
+      }
+      return routes;
+    };
+
+    const routes = createRoutesRecursive(routesManifest, []);
+    routes.push({
+      id: "___catch_all_index",
+      index: true,
+      loader: true,
+      element: null,
+    });
+    routes.push({
+      id: "___catch_all_",
+      path: "*",
+      loader: true,
+      element: null,
+    });
+    return routes;
+  }, [routesManifest]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
+  const router = useMemo((): rr.DataRouter => {
     if (BROWSER_ENVIRONMENT) {
-      return rr.createBrowserRouter(
-        [
-          lastRoute,
-          {
-            index: true,
-            loader: true,
-          },
-          {
-            path: "*",
-            loader: true,
-          },
-        ].filter((r) => !!r),
-        {
-          hydrationData: {
-            actionData: null,
-            errors: null,
-            loaderData,
-          },
-          async patchRoutesOnNavigation(args) {
-            console.log("PATCH ROUTES", args);
-          },
-          dataStrategy({ request, matches, fetcherKey }) {
-            if (request.method !== "GET") {
-              return singleFetchActionStrategy(request, matches);
-            }
+      return rr.createBrowserRouter(routes, {
+        hydrationData: {
+          actionData: null,
+          errors: null,
+          loaderData,
+        },
+        dataStrategy({ request, matches, fetcherKey }) {
+          if (request.method !== "GET") {
+            return singleFetchActionStrategy(request, matches);
+          }
 
-            // Fetcher loads are singular calls to one loader
-            if (fetcherKey) {
-              return singleFetchLoaderFetcherStrategy(request, matches);
-            }
+          // Fetcher loads are singular calls to one loader
+          if (fetcherKey) {
+            return singleFetchLoaderFetcherStrategy(request, matches);
+          }
 
-            // Navigational loads are more complex...
-            return singleFetchLoaderNavigationStrategy(
-              router,
-              request,
-              matches
-            );
-          },
-        }
-      );
+          // Navigational loads are more complex...
+          return singleFetchLoaderNavigationStrategy(
+            router,
+            request,
+            routesManifest,
+            renderedRef,
+            matches
+          );
+        },
+      });
     }
 
     const fullUrl = new URL(url);
@@ -145,9 +181,9 @@ export function ClientRouter({
         errors: null,
         loaderData,
       },
-      routes: [lastRoute].filter((r) => !!r),
+      routes,
     });
-  }, [lastRoute]);
+  }, [routes]);
 
   return <rr.RouterProvider router={router} />;
 }
@@ -163,13 +199,13 @@ async function singleFetchLoaderFetcherStrategy(
   request: Request,
   matches: rr.DataStrategyMatch[]
 ) {
-  let fetcherMatch = matches.find((m) => m.shouldLoad);
+  const fetcherMatch = matches.find((m) => m.shouldLoad);
   if (!fetcherMatch) throw new Error("No fetcher match found");
 
-  let result = await fetcherMatch.resolve(async (handler) => {
-    let url = stripIndexParam(singleFetchUrl(request.url));
-    let init = await createRequestInit(request);
-    return fetchSingleLoader(handler, url, init, fetcherMatch!.route.id);
+  const result = await fetcherMatch.resolve(async (handler) => {
+    const url = stripIndexParam(singleFetchUrl(request.url));
+    const init = await createRequestInit(request);
+    return fetchSingleLoader(url, init, fetcherMatch.route.id);
   });
   return { [fetcherMatch.route.id]: result };
 }
@@ -177,11 +213,20 @@ async function singleFetchLoaderFetcherStrategy(
 async function singleFetchLoaderNavigationStrategy(
   router: rr.DataRouter,
   request: Request,
+  routesManifest: RoutesManifest,
+  renderedRef: React.RefObject<Record<string, React.ReactNode>>,
   matches: rr.DataStrategyMatch[]
 ) {
+  if (matches.some((match) => match.route.id.startsWith("___catch_all_"))) {
+    // Hard reload the window at request.url
+    window.location.href = request.url;
+
+    await new Promise(() => {});
+  }
+
   // Track which routes need a server load - in case we need to tack on a
   // `_routes` param
-  let routesParams = new Set<string>();
+  const routesParams = new Set<string>();
 
   // We only add `_routes` when one or more routes opts out of a load via
   // `shouldRevalidate` or `clientLoader`
@@ -190,94 +235,103 @@ async function singleFetchLoaderNavigationStrategy(
   // Deferreds for each route so we can be sure they've all loaded via
   // `match.resolve()`, and a singular promise that can tell us all routes
   // have been resolved
-  let routeDfds = matches.map(() => createDeferred<void>());
-  let routesLoadedPromise = Promise.all(routeDfds.map((d) => d.promise));
+  const routeDfds = matches.map(() => createDeferred<void>());
+  const routesLoadedPromise = Promise.all(routeDfds.map((d) => d.promise));
 
   // Deferred that we'll use for the call to the server that each match can
   // await and parse out it's specific result
-  let singleFetchDfd = createDeferred<SingleFetchResults>();
+  const singleFetchDfd = createDeferred<SingleFetchResults>();
 
   // Base URL and RequestInit for calls to the server
-  let url = stripIndexParam(singleFetchUrl(request.url));
-  let init = await createRequestInit(request);
+  const url = stripIndexParam(singleFetchUrl(request.url, true));
+  const init = await createRequestInit(request);
 
   // We'll build up this results object as we loop through matches
-  let results: Record<string, rr.DataStrategyResult> = {};
+  const results: Record<string, rr.DataStrategyResult> = {};
 
-  let resolvePromise = Promise.all(
-    matches.map(async (m, i) =>
-      m.resolve(async (handler) => {
-        routeDfds[i]!.resolve();
+  const resolvePromise = Promise.all(
+    matches.map(async (m, i) => {
+      const deferred = routeDfds[i];
+      if (!deferred) throw new Error("No deferred found");
+      deferred.resolve();
 
-        let manifestRoute = manifest.routes[m.route.id];
-
-        if (!m.shouldLoad) {
-          // If we're not yet initialized and this is the initial load, respect
-          // `shouldLoad` because we're only dealing with `clientLoader.hydrate`
-          // routes which will fall into the `clientLoader` section below.
-          if (!router.state.initialized) {
-            return;
-          }
-
-          // Otherwise, we opt out if we currently have data, a `loader`, and a
-          // `shouldRevalidate` function.  This implies that the user opted out
-          // via `shouldRevalidate`
-          if (
-            m.route.id in router.state.loaderData &&
-            manifestRoute &&
-            manifestRoute.hasLoader
-            // &&
-            // TODO: Load module and check if it has a `shouldRevalidate` function
-            // routeModules[m.route.id]?.shouldRevalidate
-          ) {
-            foundOptOutRoute = true;
-            return;
+      const findRouteRecursive = (
+        id: string,
+        manifest: RoutesManifest = routesManifest
+      ): RouteManifest | null => {
+        for (const entry of manifest) {
+          if (entry.id === id) return entry;
+          if (entry.children) {
+            const found = findRouteRecursive(id, entry.children);
+            if (found) return found;
           }
         }
+        return null;
+      };
 
-        // When a route has a client loader, it opts out of the singular call and
-        // calls it's server loader via `serverLoader()` using a `?_routes` param
-        if (manifestRoute && manifestRoute.hasClientLoader) {
-          if (manifestRoute.hasLoader) {
-            foundOptOutRoute = true;
-          }
-          try {
-            let result = await fetchSingleLoader(
-              handler,
-              url,
-              init,
-              m.route.id
-            );
-            results[m.route.id] = { type: "data", result };
-          } catch (e) {
-            results[m.route.id] = { type: "error", result: e };
-          }
+      const manifestRoute = findRouteRecursive(m.route.id);
+
+      if (!m.shouldLoad) {
+        // If we're not yet initialized and this is the initial load, respect
+        // `shouldLoad` because we're only dealing with `clientLoader.hydrate`
+        // routes which will fall into the `clientLoader` section below.
+        if (!router.state.initialized) {
           return;
         }
 
-        // Load this route on the server if it has a loader
-        if (manifestRoute && manifestRoute.hasLoader) {
-          routesParams.add(m.route.id);
+        // Otherwise, we opt out if we currently have data, a `loader`, and a
+        // `shouldRevalidate` function.  This implies that the user opted out
+        // via `shouldRevalidate`
+        if (
+          m.route.id in router.state.loaderData &&
+          manifestRoute &&
+          manifestRoute.hasLoader
+          // &&
+          // TODO: Load module and check if it has a `shouldRevalidate` function
+          // routeModules[m.route.id]?.shouldRevalidate
+        ) {
+          foundOptOutRoute = true;
+          return;
         }
+      }
 
-        // Lump this match in with the others on a singular promise
-        try {
-          let result = await handler(async () => {
-            let data = await singleFetchDfd.promise;
-            return unwrapSingleFetchResults(data, m.route.id);
-          });
-          results[m.route.id] = {
-            type: "data",
-            result,
-          };
-        } catch (e) {
-          results[m.route.id] = {
-            type: "error",
-            result: e,
-          };
+      // When a route has a client loader, it opts out of the singular call and
+      // calls it's server loader via `serverLoader()` using a `?_routes` param
+      if (manifestRoute?.hasClientLoader) {
+        if (manifestRoute.hasLoader) {
+          foundOptOutRoute = true;
         }
-      })
-    )
+        try {
+          const result = await fetchSingleLoader(url, init, m.route.id);
+          results[m.route.id] = { type: "data", result };
+        } catch (e) {
+          results[m.route.id] = { type: "error", result: e };
+        }
+        return;
+      }
+
+      // Load this route on the server if it has a loader
+      if (manifestRoute?.hasLoader) {
+        routesParams.add(m.route.id);
+      }
+
+      // Lump this match in with the others on a singular promise
+      try {
+        // const result = await handler(async () => {
+        const data = await singleFetchDfd.promise;
+        const result = unwrapSingleFetchResults(data, m.route.id);
+        // });
+        results[m.route.id] = {
+          type: "data",
+          result,
+        };
+      } catch (e) {
+        results[m.route.id] = {
+          type: "error",
+          result: e,
+        };
+      }
+    })
   );
 
   // Wait for all routes to resolve above before we make the HTTP call
@@ -297,8 +351,14 @@ async function singleFetchLoaderNavigationStrategy(
       );
     }
 
-    let data = await fetchAndDecode(url, init);
-    singleFetchDfd.resolve(data.data as SingleFetchResults);
+    const data = await fetchAndDecode(url, init);
+    const result = data.data as SingleFetchResults;
+    if ("rendered" in result && result.rendered) {
+      for (const [id, rendered] of Object.entries(result.rendered)) {
+        renderedRef.current[id] = rendered;
+      }
+    }
+    singleFetchDfd.resolve(result);
   } catch (e) {
     singleFetchDfd.reject(e as Error);
   }
@@ -308,8 +368,8 @@ async function singleFetchLoaderNavigationStrategy(
   return results;
 }
 
-export function singleFetchUrl(reqUrl: URL | string) {
-  let url =
+export function singleFetchUrl(reqUrl: URL | string, navigation = false) {
+  const url =
     typeof reqUrl === "string"
       ? new URL(
           reqUrl,
@@ -331,15 +391,15 @@ export function singleFetchUrl(reqUrl: URL | string) {
 }
 
 function stripIndexParam(url: URL) {
-  let indexValues = url.searchParams.getAll("index");
+  const indexValues = url.searchParams.getAll("index");
   url.searchParams.delete("index");
-  let indexValuesToKeep = [];
-  for (let indexValue of indexValues) {
+  const indexValuesToKeep = [];
+  for (const indexValue of indexValues) {
     if (indexValue) {
       indexValuesToKeep.push(indexValue);
     }
   }
-  for (let toKeep of indexValuesToKeep) {
+  for (const toKeep of indexValuesToKeep) {
     url.searchParams.append("index", toKeep);
   }
 
@@ -347,12 +407,12 @@ function stripIndexParam(url: URL) {
 }
 
 async function createRequestInit(request: Request): Promise<RequestInit> {
-  let init: RequestInit = { signal: request.signal };
+  const init: RequestInit = { signal: request.signal };
 
   if (request.method !== "GET") {
     init.method = request.method;
 
-    let contentType = request.headers.get("Content-Type");
+    const contentType = request.headers.get("Content-Type");
 
     // Check between word boundaries instead of startsWith() due to the last
     // paragraph of https://httpwg.org/specs/rfc9110.html#field.content-type
@@ -375,25 +435,18 @@ async function createRequestInit(request: Request): Promise<RequestInit> {
   return init;
 }
 
-async function fetchSingleLoader(
-  handler: Parameters<
-    NonNullable<Parameters<rr.DataStrategyMatch["resolve"]>[0]>
-  >[0],
-  url: URL,
-  init: RequestInit,
-  routeId: string
-) {
+async function fetchSingleLoader(url: URL, init: RequestInit, routeId: string) {
   // return handler(async () => {
-  let singleLoaderUrl = new URL(url);
+  const singleLoaderUrl = new URL(url);
   singleLoaderUrl.searchParams.set("_routes", routeId);
-  let { data } = await fetchAndDecode(singleLoaderUrl, init);
+  const { data } = await fetchAndDecode(singleLoaderUrl, init);
   return unwrapSingleFetchResults(data as SingleFetchResults, routeId);
   // });
 }
 
 async function fetchAndDecode(url: URL, init: RequestInit) {
   const referencePromise = import("./references.browser");
-  let res = await fetch(url, init);
+  const res = await fetch(url, init);
 
   // If this 404'd without hitting the running server (most likely in a
   // pre-rendered app using a CDN), then bubble a standard 404 ErrorResponse
@@ -405,7 +458,7 @@ async function fetchAndDecode(url: URL, init: RequestInit) {
 
   const { callServer } = await referencePromise;
   try {
-    let decoded = await createFromReadableStream(res.body, manifest, {
+    const decoded = await createFromReadableStream(res.body, manifest, {
       callServer,
     });
     return { status: res.status, data: decoded };
@@ -436,6 +489,7 @@ export type SingleFetchResult =
 export type SingleFetchResults =
   | {
       data: { [key: string]: SingleFetchResult };
+      rendered: { [key: string]: React.ReactNode };
     }
   | {
       redirect: SingleFetchRedirectResult;
@@ -457,8 +511,9 @@ function unwrapSingleFetchResults(
 function unwrapSingleFetchResult(result: SingleFetchResult, routeId: string) {
   if ("error" in result) {
     throw result.error;
-  } else if ("redirect" in result) {
-    let headers: Record<string, string> = {};
+  }
+  if ("redirect" in result) {
+    const headers: Record<string, string> = {};
     if (result.revalidate) {
       headers["X-Remix-Revalidate"] = "yes";
     }
@@ -469,17 +524,18 @@ function unwrapSingleFetchResult(result: SingleFetchResult, routeId: string) {
       headers["X-Remix-Replace"] = "yes";
     }
     throw rr.redirect(result.redirect, { status: result.status, headers });
-  } else if ("data" in result) {
-    return result.data;
-  } else {
-    throw new Error(`No response found for routeId "${routeId}"`);
   }
+  if ("data" in result) {
+    return result.data;
+  }
+  throw new Error(`No response found for routeId "${routeId}"`);
 }
 
 function createDeferred<T = unknown>() {
+  // biome-ignore lint/suspicious/noExplicitAny: <explanation>
   let resolve: (val?: any) => Promise<void>;
   let reject: (error?: Error) => Promise<void>;
-  let promise = new Promise<T>((res, rej) => {
+  const promise = new Promise<T>((res, rej) => {
     resolve = async (val: T) => {
       res(val);
       try {

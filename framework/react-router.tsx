@@ -14,6 +14,8 @@ import { createStaticHandler, matchRoutes } from "react-router";
 import { splitCookiesString } from "set-cookie-parser";
 
 import type {
+  RouteManifest,
+  RoutesManifest,
   SingleFetchRedirectResult,
   SingleFetchResult,
   SingleFetchResults,
@@ -71,12 +73,31 @@ export async function ServerRouter({ routes }: { routes: RouteConfig }) {
 
   const { loaderData, matches } = result;
 
-  let cache = new Map<string, RouteObject>();
-  const setupCache = (_routes: RouteObject[] = routes) => {
+  const routesManifest: RoutesManifest = [];
+  const cache = new Map<string, RouteObject>();
+  const setupCache = (
+    _routes: RouteObject[] = routes,
+    _routesManifest: RoutesManifest = routesManifest
+  ) => {
     for (const route of _routes) {
-      cache.set(route.id!, route);
+      if (!route.id) throw new Error("Route id is required");
+
+      const manifest: RouteManifest = {
+        id: route.id,
+        index: route.index,
+        path: route.path,
+        clientModule: undefined,
+        hasAction: !!route.action,
+        hasClientAction: false,
+        hasClientLoader: false,
+        hasLoader: !!route.loader,
+      };
+      _routesManifest.push(manifest);
+
+      cache.set(route.id, route);
       if (route.children) {
-        setupCache(route.children);
+        manifest.children = [];
+        setupCache(route.children, manifest.children);
       }
     }
   };
@@ -98,30 +119,8 @@ export async function ServerRouter({ routes }: { routes: RouteConfig }) {
   return (
     <ClientRouter
       loaderData={loaderData}
-      params={matches?.[0]?.params ?? {}}
       rendered={rendered}
-      matches={
-        matches?.map((match) =>
-          match.route.index
-            ? {
-                id: match.route.id!,
-                index: match.route.index,
-                path: match.route.path,
-                pathname: match.pathname,
-                pathnameBase: match.pathnameBase,
-                hasAction: !!match.route.action,
-                hasLoader: !!match.route.loader,
-              }
-            : {
-                id: match.route.id!,
-                path: match.route.path,
-                pathname: match.pathname,
-                pathnameBase: match.pathnameBase,
-                hasAction: !!match.route.action,
-                hasLoader: !!match.route.loader,
-              }
-        ) ?? []
-      }
+      routesManifest={routesManifest}
       url={url.href}
     />
   );
@@ -136,7 +135,7 @@ export async function handleReactRouterRequest(
   const url = new URL(request.url);
 
   if (url.pathname.endsWith(".data")) {
-    let handlerUrl = new URL(request.url);
+    const handlerUrl = new URL(request.url);
     handlerUrl.pathname = handlerUrl.pathname
       .replace(/\.data$/, "")
       .replace(/^\/_root$/, "/");
@@ -184,8 +183,8 @@ export async function handleReactRouterRequest(
         status: SINGLE_FETCH_REDIRECT_STATUS,
       };
     } else {
-      let context = ctx;
-      let headers = getDocumentHeaders(context);
+      const context = ctx;
+      const headers = getDocumentHeaders(context);
       // let headers = new Headers();
 
       if (isRedirectStatusCode(context.statusCode) && headers.has("Location")) {
@@ -204,31 +203,74 @@ export async function handleReactRouterRequest(
         const loadRouteIds = matches.map((m) => m.route.id);
         // Aggregate results based on the matches we intended to load since we get
         // `null` values back in `context.loaderData` for routes we didn't load
-        let results: { [key: string]: SingleFetchResult } = {};
-        let loadedMatches = loadRouteIds
+        const results: { [key: string]: SingleFetchResult } = {};
+        const loadedMatches = loadRouteIds
           ? context.matches.filter(
-              (m) => m.route.loader && loadRouteIds!.includes(m.route.id)
+              (m) => m.route.loader && loadRouteIds.includes(m.route.id)
             )
           : context.matches;
 
-        loadedMatches.forEach((m) => {
-          let { id } = m.route;
-          if (context.errors && context.errors.hasOwnProperty(id)) {
+        for (const match of loadedMatches) {
+          const { id } = match.route;
+          if (context.errors && id in context.errors) {
             results[id] = { error: context.errors[id] };
-          } else if (context.loaderData.hasOwnProperty(id)) {
+          } else if (context.loaderData && id in context.loaderData) {
             results[id] = { data: context.loaderData[id] };
           }
-        });
+        }
+
+        const routesManifest: RoutesManifest = [];
+        const cache = new Map<string, RouteObject>();
+        const setupCache = (
+          _routes: RouteObject[] = routes,
+          _routesManifest: RoutesManifest = routesManifest
+        ) => {
+          for (const route of _routes) {
+            if (!route.id) throw new Error("Route id is required");
+
+            const manifest: RouteManifest = {
+              id: route.id,
+              index: route.index,
+              path: route.path,
+              clientModule: undefined,
+              hasAction: !!route.action,
+              hasClientAction: false,
+              hasClientLoader: false,
+              hasLoader: !!route.loader,
+            };
+            _routesManifest.push(manifest);
+
+            cache.set(route.id, route);
+            if (route.children) {
+              manifest.children = [];
+              setupCache(route.children, manifest.children);
+            }
+          }
+        };
+        setupCache();
+
+        const rendered: Record<string, React.ReactNode> = {};
+        for (let i = matches.length - 1; i >= 0; i--) {
+          const match = matches[i];
+
+          if (!match?.route.id) throw new Error("Route id is required");
+          const route = cache.get(match.route.id);
+          if (!route) throw new Error("Route not found");
+
+          if (route.Component) {
+            rendered[match.route.id] = <route.Component />;
+          }
+        }
 
         payload = {
-          result: { data: results },
+          result: { data: results, rendered },
           headers,
           status: context.statusCode,
         };
       }
     }
 
-    let { result, headers, status } = payload;
+    const { result, headers, status } = payload;
     headers.set("Content-Type", "text/x-component");
     const { abort, pipe } = RSD.renderToPipeableStream(result, manifest);
     request.signal.addEventListener("abort", () => abort());
@@ -244,10 +286,11 @@ export async function handleReactRouterRequest(
 }
 
 function getDocumentHeaders(context: StaticHandlerContext): Headers {
-  let boundaryIdx = context.errors
-    ? context.matches.findIndex((m) => context.errors![m.route.id])
+  const errors = context.errors;
+  const boundaryIdx = errors
+    ? context.matches.findIndex((m) => errors[m.route.id])
     : -1;
-  let matches =
+  const matches =
     boundaryIdx >= 0
       ? context.matches.slice(0, boundaryIdx + 1)
       : context.matches;
@@ -257,15 +300,12 @@ function getDocumentHeaders(context: StaticHandlerContext): Headers {
   if (boundaryIdx >= 0) {
     // Look for any errorHeaders from the boundary route down, which can be
     // identified by the presence of headers but no data
-    let { actionHeaders, actionData, loaderHeaders, loaderData } = context;
+    const { actionHeaders, actionData, loaderHeaders, loaderData } = context;
     context.matches.slice(boundaryIdx).some((match) => {
-      let id = match.route.id;
-      if (
-        actionHeaders[id] &&
-        (!actionData || !actionData.hasOwnProperty(id))
-      ) {
+      const id = match.route.id;
+      if (actionHeaders[id] && (!actionData || !(id in actionData))) {
         errorHeaders = actionHeaders[id];
-      } else if (loaderHeaders[id] && !loaderData.hasOwnProperty(id)) {
+      } else if (loaderHeaders[id] && !(id in loaderData)) {
         errorHeaders = loaderHeaders[id];
       }
       return errorHeaders != null;
@@ -273,25 +313,25 @@ function getDocumentHeaders(context: StaticHandlerContext): Headers {
   }
 
   return matches.reduce((parentHeaders, match, idx) => {
-    let { id } = match.route;
-    let loaderHeaders = context.loaderHeaders[id] || new Headers();
-    let actionHeaders = context.actionHeaders[id] || new Headers();
+    const { id } = match.route;
+    const loaderHeaders = context.loaderHeaders[id] || new Headers();
+    const actionHeaders = context.actionHeaders[id] || new Headers();
 
     // Only expose errorHeaders to the leaf headers() function to
     // avoid duplication via parentHeaders
-    let includeErrorHeaders =
+    const includeErrorHeaders =
       errorHeaders != null && idx === matches.length - 1;
     // Only prepend cookies from errorHeaders at the leaf renderable route
     // when it's not the same as loaderHeaders/actionHeaders to avoid
     // duplicate cookies
-    let includeErrorCookies =
+    const includeErrorCookies =
       includeErrorHeaders &&
       errorHeaders !== loaderHeaders &&
       errorHeaders !== actionHeaders;
 
-    let headers = new Headers(parentHeaders);
-    if (includeErrorCookies) {
-      prependCookies(errorHeaders!, headers);
+    const headers = new Headers(parentHeaders);
+    if (includeErrorCookies && errorHeaders) {
+      prependCookies(errorHeaders, headers);
     }
     prependCookies(actionHeaders, headers);
     prependCookies(loaderHeaders, headers);
@@ -299,13 +339,13 @@ function getDocumentHeaders(context: StaticHandlerContext): Headers {
   }, new Headers());
 }
 function prependCookies(parentHeaders: Headers, childHeaders: Headers): void {
-  let parentSetCookieString = parentHeaders.get("Set-Cookie");
+  const parentSetCookieString = parentHeaders.get("Set-Cookie");
 
   if (parentSetCookieString) {
-    let cookies = splitCookiesString(parentSetCookieString);
-    cookies.forEach((cookie) => {
+    const cookies = splitCookiesString(parentSetCookieString);
+    for (const cookie of cookies) {
       childHeaders.append("Set-Cookie", cookie);
-    });
+    }
   }
 }
 
@@ -314,7 +354,11 @@ function getSingleFetchRedirect(
   headers: Headers,
   basename: string | undefined
 ): SingleFetchRedirectResult {
-  let redirect = headers.get("Location")!;
+  let redirect = headers.get("Location");
+
+  if (!redirect) {
+    throw new Error("Expected redirect location");
+  }
 
   if (basename) {
     redirect = stripBasename(redirect, basename) || redirect;
@@ -345,10 +389,10 @@ function stripBasename(pathname: string, basename: string): string | null {
 
   // We want to leave trailing slash behavior in the user's control, so if they
   // specify a basename with a trailing slash, we should support it
-  let startIndex = basename.endsWith("/")
+  const startIndex = basename.endsWith("/")
     ? basename.length - 1
     : basename.length;
-  let nextChar = pathname.charAt(startIndex);
+  const nextChar = pathname.charAt(startIndex);
   if (nextChar && nextChar !== "/") {
     // pathname does not start with basename/
     return null;
@@ -357,6 +401,7 @@ function stripBasename(pathname: string, basename: string): string | null {
   return pathname.slice(startIndex) || "/";
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: <explanation>
 function isResponse(value: any): value is Response {
   return (
     value != null &&

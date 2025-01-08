@@ -23,6 +23,12 @@ import { UNSAFE_RouterContext, type RouterContext } from "./client.js";
 import { api, callServer } from "./references.browser.js";
 import type { Location, UNSAFE_ServerPayload } from "./server.js";
 
+declare global {
+  interface Window {
+    __ROUTER_DISABLED__?: boolean;
+  }
+}
+
 function getLocationSnapshot() {
   return window.location.pathname + window.location.search;
 }
@@ -73,6 +79,7 @@ function Shell({ payload }: { payload: Promise<UNSAFE_ServerPayload> }) {
   );
 
   useEffect(() => {
+    if (window.__ROUTER_DISABLED__) return;
     if (!navigating && location.pathname + location.search !== windowLocation) {
       window.history.replaceState(
         null,
@@ -85,6 +92,7 @@ function Shell({ payload }: { payload: Promise<UNSAFE_ServerPayload> }) {
   useEffect(() => {
     const handler = (event: NavigateEvent) => {
       if (
+        window.__ROUTER_DISABLED__ ||
         !event.canIntercept ||
         event.defaultPrevented ||
         event.downloadRequest ||
