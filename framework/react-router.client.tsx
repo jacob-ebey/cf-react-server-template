@@ -93,7 +93,11 @@ export function ClientRouter({
             }
 
             // Navigational loads are more complex...
-            return singleFetchLoaderNavigationStrategy(request, matches);
+            return singleFetchLoaderNavigationStrategy(
+              router,
+              request,
+              matches
+            );
           },
         }
       );
@@ -170,11 +174,138 @@ async function singleFetchLoaderFetcherStrategy(
   return { [fetcherMatch.route.id]: result };
 }
 
-function singleFetchLoaderNavigationStrategy(
+async function singleFetchLoaderNavigationStrategy(
+  router: rr.DataRouter,
   request: Request,
   matches: rr.DataStrategyMatch[]
-): never {
-  throw new Error("Not implemented");
+) {
+  // Track which routes need a server load - in case we need to tack on a
+  // `_routes` param
+  let routesParams = new Set<string>();
+
+  // We only add `_routes` when one or more routes opts out of a load via
+  // `shouldRevalidate` or `clientLoader`
+  let foundOptOutRoute = false;
+
+  // Deferreds for each route so we can be sure they've all loaded via
+  // `match.resolve()`, and a singular promise that can tell us all routes
+  // have been resolved
+  let routeDfds = matches.map(() => createDeferred<void>());
+  let routesLoadedPromise = Promise.all(routeDfds.map((d) => d.promise));
+
+  // Deferred that we'll use for the call to the server that each match can
+  // await and parse out it's specific result
+  let singleFetchDfd = createDeferred<SingleFetchResults>();
+
+  // Base URL and RequestInit for calls to the server
+  let url = stripIndexParam(singleFetchUrl(request.url));
+  let init = await createRequestInit(request);
+
+  // We'll build up this results object as we loop through matches
+  let results: Record<string, rr.DataStrategyResult> = {};
+
+  let resolvePromise = Promise.all(
+    matches.map(async (m, i) =>
+      m.resolve(async (handler) => {
+        routeDfds[i]!.resolve();
+
+        let manifestRoute = manifest.routes[m.route.id];
+
+        if (!m.shouldLoad) {
+          // If we're not yet initialized and this is the initial load, respect
+          // `shouldLoad` because we're only dealing with `clientLoader.hydrate`
+          // routes which will fall into the `clientLoader` section below.
+          if (!router.state.initialized) {
+            return;
+          }
+
+          // Otherwise, we opt out if we currently have data, a `loader`, and a
+          // `shouldRevalidate` function.  This implies that the user opted out
+          // via `shouldRevalidate`
+          if (
+            m.route.id in router.state.loaderData &&
+            manifestRoute &&
+            manifestRoute.hasLoader
+            // &&
+            // TODO: Load module and check if it has a `shouldRevalidate` function
+            // routeModules[m.route.id]?.shouldRevalidate
+          ) {
+            foundOptOutRoute = true;
+            return;
+          }
+        }
+
+        // When a route has a client loader, it opts out of the singular call and
+        // calls it's server loader via `serverLoader()` using a `?_routes` param
+        if (manifestRoute && manifestRoute.hasClientLoader) {
+          if (manifestRoute.hasLoader) {
+            foundOptOutRoute = true;
+          }
+          try {
+            let result = await fetchSingleLoader(
+              handler,
+              url,
+              init,
+              m.route.id
+            );
+            results[m.route.id] = { type: "data", result };
+          } catch (e) {
+            results[m.route.id] = { type: "error", result: e };
+          }
+          return;
+        }
+
+        // Load this route on the server if it has a loader
+        if (manifestRoute && manifestRoute.hasLoader) {
+          routesParams.add(m.route.id);
+        }
+
+        // Lump this match in with the others on a singular promise
+        try {
+          let result = await handler(async () => {
+            let data = await singleFetchDfd.promise;
+            return unwrapSingleFetchResults(data, m.route.id);
+          });
+          results[m.route.id] = {
+            type: "data",
+            result,
+          };
+        } catch (e) {
+          results[m.route.id] = {
+            type: "error",
+            result: e,
+          };
+        }
+      })
+    )
+  );
+
+  // Wait for all routes to resolve above before we make the HTTP call
+  await routesLoadedPromise;
+
+  try {
+    // When one or more routes have opted out, we add a _routes param to
+    // limit the loaders to those that have a server loader and did not
+    // opt out
+    if (foundOptOutRoute && routesParams.size > 0) {
+      url.searchParams.set(
+        "_routes",
+        matches
+          .filter((m) => routesParams.has(m.route.id))
+          .map((m) => m.route.id)
+          .join(",")
+      );
+    }
+
+    let data = await fetchAndDecode(url, init);
+    singleFetchDfd.resolve(data.data as SingleFetchResults);
+  } catch (e) {
+    singleFetchDfd.reject(e as Error);
+  }
+
+  await resolvePromise;
+
+  return results;
 }
 
 export function singleFetchUrl(reqUrl: URL | string) {
@@ -343,4 +474,30 @@ function unwrapSingleFetchResult(result: SingleFetchResult, routeId: string) {
   } else {
     throw new Error(`No response found for routeId "${routeId}"`);
   }
+}
+
+function createDeferred<T = unknown>() {
+  let resolve: (val?: any) => Promise<void>;
+  let reject: (error?: Error) => Promise<void>;
+  let promise = new Promise<T>((res, rej) => {
+    resolve = async (val: T) => {
+      res(val);
+      try {
+        await promise;
+      } catch (e) {}
+    };
+    reject = async (error?: Error) => {
+      rej(error);
+      try {
+        await promise;
+      } catch (e) {}
+    };
+  });
+  return {
+    promise,
+    //@ts-ignore
+    resolve,
+    //@ts-ignore
+    reject,
+  };
 }
