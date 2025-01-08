@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build-router": "npx esbuild --bundle react-router.rsc.ts --format=esm --platform=node --outfile=react-router.rsc.js --minify --define:process.env.NODE_ENV=\\\"production\\\"",
     "build": "vite build --app",
     "check:types": "tsc --build",
     "deploy": "wrangler deploy -c dist/server/wrangler.json && pnpm wrangler deploy -c dist/ssr/wrangler.json ",
@@ -35,6 +36,7 @@
     "@types/node": "^22.10.4",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/set-cookie-parser": "^2.4.10",
     "autoprefixer": "^10.4.20",
     "execa": "^9.5.2",
     "postcss": "^8.4.49",

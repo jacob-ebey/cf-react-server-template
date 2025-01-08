@@ -56,7 +56,13 @@ export async function renderServerResponse(
     serverResponse = await sendServerRequest(request);
   }
 
-  if (isDataRequest || (!isDataRequest && isPrerendered)) {
+  const url = new URL(request.url);
+
+  if (
+    url.pathname.endsWith(".data") ||
+    isDataRequest ||
+    (!isDataRequest && isPrerendered)
+  ) {
     return serverResponse;
   }
 
@@ -82,7 +88,6 @@ export async function renderServerResponse(
     }
   );
 
-  const url = new URL(request.url);
   if (
     payload.location.pathname + payload.location.search !==
     url.pathname + url.search

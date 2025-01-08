@@ -10,7 +10,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useOptimistic,
   useState,
   useSyncExternalStore,
   useTransition,
@@ -89,10 +88,12 @@ function Shell({ payload }: { payload: Promise<UNSAFE_ServerPayload> }) {
         !event.canIntercept ||
         event.defaultPrevented ||
         event.downloadRequest ||
-        event.navigationType === "reload"
+        event.hashChange ||
+        !event.userInitiated
       ) {
         return;
       }
+      console.log("HERE!", event);
 
       const url = new URL(event.destination.url);
 

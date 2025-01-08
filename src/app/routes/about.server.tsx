@@ -1,3 +1,5 @@
-export function loader() {
-  return "About!";
+import type { LoaderFunctionArgs } from "react-router";
+
+export function loader({ params }: LoaderFunctionArgs) {
+  return params.id || "About!";
 }

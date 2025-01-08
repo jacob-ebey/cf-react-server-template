@@ -3,17 +3,21 @@
 import {
   Link,
   Outlet,
+  useFetcher,
   useLoaderData,
   useLocation,
   useParams,
   useNavigation,
 } from "react-router";
+import { Button } from "~/components/ui/button";
 
 export function Component() {
   const location = useLocation();
   const params = useParams();
   const navigation = useNavigation();
   const loaderData = useLoaderData();
+
+  const fetcher = useFetcher();
 
   return (
     <main className="typography py-20 px-4 md:px-6 mx-auto w-full container">
@@ -45,6 +49,26 @@ export function Component() {
       <p>Loader Data:</p>
       <pre>
         <code>{JSON.stringify(loaderData)}</code>
+      </pre>
+
+      <p>Fetcher:</p>
+      <p>
+        <Button
+          type="button"
+          onPress={() => {
+            fetcher.load(".");
+          }}
+        >
+          Load fetcher
+        </Button>
+      </p>
+      <pre>
+        <code>
+          {JSON.stringify({
+            state: fetcher.state,
+            data: fetcher.data || null,
+          })}
+        </code>
       </pre>
 
       <Outlet />
