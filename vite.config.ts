@@ -9,6 +9,9 @@ import type * as vite from "vite";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
+import { generate, parse } from "./babel";
+import { removeExports } from "./remove-exports";
+
 loadRoutesConfig("src/app/routes.ts");
 
 export default defineConfig({
@@ -62,6 +65,20 @@ export default defineConfig({
   ],
 });
 
+const SERVER_ONLY_ROUTE_EXPORTS = ["loader", "action", "headers"];
+const CLIENT_ROUTE_EXPORTS = [
+  "clientAction",
+  "clientLoader",
+  "default",
+  "ErrorBoundary",
+  "handle",
+  "HydrateFallback",
+  "Layout",
+  "links",
+  "meta",
+  "shouldRevalidate",
+];
+
 function reactRouterServer({ routes }: { routes: string }): vite.Plugin {
   const routesPath = path.resolve(routes);
   const routesConfig = loadRoutesConfig(routesPath);
@@ -82,6 +99,31 @@ function reactRouterServer({ routes }: { routes: string }): vite.Plugin {
     },
     transform(code, id) {
       if (routeFiles.has(id)) {
+        let clientAST = parse(code, { sourceType: "module" });
+
+        let transformed = "";
+
+        // client: remove server exports
+        const removedExports = removeExports(
+          structuredClone(clientAST),
+          CLIENT_ROUTE_EXPORTS
+        );
+
+        let result = generate(clientAST, {
+          sourceMaps: true,
+          filename: id,
+          sourceFileName: id,
+        });
+        // server: remove client exports
+        const serverRemovedExports = removeExports(ast, CLIENT_ROUTE_EXPORTS);
+        if (serverRemovedExports.has("default")) {
+          const vmodId = `virtual:react-router/client-route/${id}`;
+          const reexport = `export { default } from "${vmodId}";\n`;
+          result.code = reexport + result.code;
+        }
+        // NOTE: we messed up sourcemaps by just adding re-export to beginning. fix this later
+        return result;
+
         // TODO: Strip out the "client" portion of the route.
         // - If there was no client portion, return the og code
         // - If there was a client portion, strip it and store the

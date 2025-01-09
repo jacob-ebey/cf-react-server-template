@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@babel/traverse": "^7.26.4",
+    "@babel/types": "^7.26.3",
     "@jacob-ebey/react-server-dom-vite": "19.0.0-experimental.14",
     "@radix-ui/react-slot": "^1.1.1",
     "bcrypt-edge": "0.1.0",
@@ -33,6 +35,9 @@
     "@flarelabs-net/vite-plugin-cloudflare": "https://pkg.pr.new/flarelabs-net/vite-plugin-cloudflare/@flarelabs-net/vite-plugin-cloudflare@123",
     "@jacob-ebey/vite-react-server-dom": "0.0.12",
     "@react-router/dev": "0.0.0-experimental-1ebb6d403",
+    "@types/babel__core": "^7.20.5",
+    "@types/babel__generator": "^7.6.8",
+    "@types/babel__traverse": "^7.20.6",
     "@types/cookie": "^1.0.0",
     "@types/dom-navigation": "^1.0.4",
     "@types/node": "^22.10.4",

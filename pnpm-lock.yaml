@@ -13,6 +13,12 @@ importers:
 
   .:
     dependencies:
+      '@babel/traverse':
+        specifier: ^7.26.4
+        version: 7.26.4
+      '@babel/types':
+        specifier: ^7.26.3
+        version: 7.26.3
       '@jacob-ebey/react-server-dom-vite':
         specifier: 19.0.0-experimental.14
         version: 19.0.0-experimental.14(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -77,6 +83,15 @@ importers:
       '@react-router/dev':
         specifier: 0.0.0-experimental-1ebb6d403
         version: 0.0.0-experimental-1ebb6d403(@types/node@22.10.4)(jiti@1.21.7)(react-router@0.0.0-experimental-1ebb6d403(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(terser@5.37.0)(typescript@5.7.2)(vite@6.0.7(@types/node@22.10.4)(jiti@1.21.7)(terser@5.37.0)(yaml@2.7.0))(wrangler@3.99.0(@cloudflare/workers-types@4.20241230.0))(yaml@2.7.0)
+      '@types/babel__core':
+        specifier: ^7.20.5
+        version: 7.20.5
+      '@types/babel__generator':
+        specifier: ^7.6.8
+        version: 7.6.8
+      '@types/babel__traverse':
+        specifier: ^7.20.6
+        version: 7.20.6
       '@types/cookie':
         specifier: ^1.0.0
         version: 1.0.0
@@ -3874,7 +3889,7 @@ snapshots:
       '@babel/helpers': 7.26.0
       '@babel/parser': 7.26.3
       '@babel/template': 7.25.9
-      '@babel/traverse': 7.24.1
+      '@babel/traverse': 7.26.4
       '@babel/types': 7.26.3
       convert-source-map: 2.0.0
       debug: 4.4.0
