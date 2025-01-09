@@ -1,9 +1,10 @@
 import { renderApp } from "framework/server";
 
-import routes from "~/routes";
 
 import { TodoList } from "./todo-list";
 import { User } from "./user";
+
+import routes from "~/_routes";
 
 import { handleReactRouterRequest } from "framework/react-router";
 

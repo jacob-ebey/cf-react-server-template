@@ -6,7 +6,7 @@ import { getURL, setStatus } from "framework/server";
 import { GlobalPendingIndicator } from "./app.client";
 import stylesHref from "./app.css?url";
 
-import routes from "./routes";
+import routes from "./_routes";
 
 export function App() {
   const url = getURL();

@@ -1,22 +1,6 @@
-import { type RouteConfig, index, route } from "framework/react-router";
+import type { RouteConfig } from "@react-router/dev/routes";
+import { layout, index } from "@react-router/dev/routes";
 
 export default [
-  route("", () => import("./root"), {
-    id: "root",
-    children: [
-      index(() => import("./routes/home"), { id: "home" }),
-      route("about", () => import("./routes/about"), {
-        id: "about",
-        children: [
-          route(":id", () => import("./routes/server"), { id: "server" }),
-        ],
-      }),
-      route("server", () => import("./routes/server"), {
-        id: "server2",
-        children: [
-          route(":id", () => import("./routes/about"), { id: "about2" }),
-        ],
-      }),
-    ],
-  }),
+  layout("root.tsx", [index("routes/home.tsx")]),
 ] satisfies RouteConfig;
