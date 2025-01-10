@@ -12,8 +12,6 @@ import tsconfigPaths from "vite-tsconfig-paths";
 import { generate, parse } from "./babel";
 import { removeExports } from "./remove-exports";
 
-loadRoutesConfig("src/app/routes.ts");
-
 export default defineConfig({
   environments: {
     client: {
@@ -34,9 +32,9 @@ export default defineConfig({
   },
   plugins: [
     tsconfigPaths({ configNames: ["tsconfig.client.json"] }),
-    reactRouterServer({
-      routes: "src/app/routes.ts",
-    }),
+    // reactRouterServer({
+    //   routes: "src/app/routes.ts",
+    // }),
     reactServerDOM({
       browserEnvironment: "client",
       serverEnvironments: ["server"],
@@ -65,104 +63,104 @@ export default defineConfig({
   ],
 });
 
-const SERVER_ONLY_ROUTE_EXPORTS = ["loader", "action", "headers"];
-const CLIENT_ROUTE_EXPORTS = [
-  "clientAction",
-  "clientLoader",
-  "default",
-  "ErrorBoundary",
-  "handle",
-  "HydrateFallback",
-  "Layout",
-  "links",
-  "meta",
-  "shouldRevalidate",
-];
+// const SERVER_ONLY_ROUTE_EXPORTS = ["loader", "action", "headers"];
+// const CLIENT_ROUTE_EXPORTS = [
+//   "clientAction",
+//   "clientLoader",
+//   "default",
+//   "ErrorBoundary",
+//   "handle",
+//   "HydrateFallback",
+//   "Layout",
+//   "links",
+//   "meta",
+//   "shouldRevalidate",
+// ];
 
-function reactRouterServer({ routes }: { routes: string }): vite.Plugin {
-  const routesPath = path.resolve(routes);
-  const routesConfig = loadRoutesConfig(routesPath);
-  const routeFiles = collectRoutes(path.dirname(routesPath), routesConfig);
+// function reactRouterServer({ routes }: { routes: string }): vite.Plugin {
+//   const routesPath = path.resolve(routes);
+//   const routesConfig = loadRoutesConfig(routesPath);
+//   const routeFiles = collectRoutes(path.dirname(routesPath), routesConfig);
 
-  // TODO: Store the "client" portion of the route module
-  const vmods = new Map<string, string>();
+//   // TODO: Store the "client" portion of the route module
+//   const vmods = new Map<string, string>();
 
-  return {
-    name: "react-router-server",
-    resolveId(id) {
-      // TODO: Resolve "virtual:react-router/routes"
-      // TODO: Resolve "virtual:react-router/client-route/${id}"
-    },
-    load(id) {
-      // TODO: Resolve "virtual:react-router/routes" with runtime version of routes.ts
-      // TODO: Resolve "virtual:react-router/client-route/${id}" with vmod content
-    },
-    transform(code, id) {
-      if (routeFiles.has(id)) {
-        let clientAST = parse(code, { sourceType: "module" });
+//   return {
+//     name: "react-router-server",
+//     resolveId(id) {
+//       // TODO: Resolve "virtual:react-router/routes"
+//       // TODO: Resolve "virtual:react-router/client-route/${id}"
+//     },
+//     load(id) {
+//       // TODO: Resolve "virtual:react-router/routes" with runtime version of routes.ts
+//       // TODO: Resolve "virtual:react-router/client-route/${id}" with vmod content
+//     },
+//     transform(code, id) {
+//       if (routeFiles.has(id)) {
+//         let clientAST = parse(code, { sourceType: "module" });
 
-        let transformed = "";
+//         let transformed = "";
 
-        // client: remove server exports
-        const removedExports = removeExports(
-          structuredClone(clientAST),
-          CLIENT_ROUTE_EXPORTS
-        );
+//         // client: remove server exports
+//         const removedExports = removeExports(
+//           structuredClone(clientAST),
+//           CLIENT_ROUTE_EXPORTS
+//         );
 
-        let result = generate(clientAST, {
-          sourceMaps: true,
-          filename: id,
-          sourceFileName: id,
-        });
-        // server: remove client exports
-        const serverRemovedExports = removeExports(ast, CLIENT_ROUTE_EXPORTS);
-        if (serverRemovedExports.has("default")) {
-          const vmodId = `virtual:react-router/client-route/${id}`;
-          const reexport = `export { default } from "${vmodId}";\n`;
-          result.code = reexport + result.code;
-        }
-        // NOTE: we messed up sourcemaps by just adding re-export to beginning. fix this later
-        return result;
+//         let result = generate(clientAST, {
+//           sourceMaps: true,
+//           filename: id,
+//           sourceFileName: id,
+//         });
+//         // server: remove client exports
+//         const serverRemovedExports = removeExports(ast, CLIENT_ROUTE_EXPORTS);
+//         if (serverRemovedExports.has("default")) {
+//           const vmodId = `virtual:react-router/client-route/${id}`;
+//           const reexport = `export { default } from "${vmodId}";\n`;
+//           result.code = reexport + result.code;
+//         }
+//         // NOTE: we messed up sourcemaps by just adding re-export to beginning. fix this later
+//         return result;
 
-        // TODO: Strip out the "client" portion of the route.
-        // - If there was no client portion, return the og code
-        // - If there was a client portion, strip it and store the
-        //    client portion in the vmods map with a re-export to that vmod
-      }
-    },
-  };
-}
+//         // TODO: Strip out the "client" portion of the route.
+//         // - If there was no client portion, return the og code
+//         // - If there was a client portion, strip it and store the
+//         //    client portion in the vmods map with a re-export to that vmod
+//       }
+//     },
+//   };
+// }
 
-function collectRoutes(
-  base: string,
-  routes: Awaited<RouteConfig>,
-  collected = new Set<string>()
-) {
-  for (const route of routes) {
-    collected.add(path.resolve(base, route.file));
+// function collectRoutes(
+//   base: string,
+//   routes: Awaited<RouteConfig>,
+//   collected = new Set<string>()
+// ) {
+//   for (const route of routes) {
+//     collected.add(path.resolve(base, route.file));
 
-    if (route.children) {
-      collectRoutes(base, route.children, collected);
-    }
-  }
-  return collected;
-}
+//     if (route.children) {
+//       collectRoutes(base, route.children, collected);
+//     }
+//   }
+//   return collected;
+// }
 
-function loadRoutesConfig(file: string): Awaited<RouteConfig> {
-  const toLoad = pathToFileURL(file).href;
-  const script = `(async () => {
-    const mod = await import(${JSON.stringify(toLoad)});
-    console.log(JSON.stringify(await mod.default));
-  })()`;
+// function loadRoutesConfig(file: string): Awaited<RouteConfig> {
+//   const toLoad = pathToFileURL(file).href;
+//   const script = `(async () => {
+//     const mod = await import(${JSON.stringify(toLoad)});
+//     console.log(JSON.stringify(await mod.default));
+//   })()`;
 
-  const { stdout, status } = spawnSync("node", [
-    "--experimental-strip-types",
-    "-e",
-    script,
-  ]);
-  if (status !== 0) {
-    throw new Error("Failed to load routes config");
-  }
-  const config = JSON.parse(stdout.toString());
-  return config;
-}
+//   const { stdout, status } = spawnSync("node", [
+//     "--experimental-strip-types",
+//     "-e",
+//     script,
+//   ]);
+//   if (status !== 0) {
+//     throw new Error("Failed to load routes config");
+//   }
+//   const config = JSON.parse(stdout.toString());
+//   return config;
+// }
